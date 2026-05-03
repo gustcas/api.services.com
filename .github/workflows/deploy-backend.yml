@@ -10,26 +10,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Laravel on server
+      - name: Deploy Laravel API on server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script_stop: true
+          command_timeout: 20m
           script: |
+            set -e
+            export COMPOSER_ALLOW_SUPERUSER=1
+
             cd /home/services-api/htdocs/api.services.com/api-servicios
-            git pull origin main
-            composer install --no-dev --optimize-autoloader
-            php artisan migrate --force
-            php artisan config:clear
-            php artisan cache:clear
-            php artisan route:clear
-            php artisan view:clear
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
+
+            git config --global --add safe.directory /home/services-api/htdocs/api.services.com/api-servicios
+            git remote set-url origin https://github.com/gustcas/api.services.com.git
+
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
+
+            /usr/bin/php7.4 /usr/local/bin/composer install --no-dev --optimize-autoloader
+
+            /usr/bin/php7.4 artisan migrate --force
+
+            /usr/bin/php7.4 artisan config:clear
+            /usr/bin/php7.4 artisan cache:clear
+            /usr/bin/php7.4 artisan route:clear
+            /usr/bin/php7.4 artisan view:clear
+
+            /usr/bin/php7.4 artisan config:cache
+            /usr/bin/php7.4 artisan route:cache
+            /usr/bin/php7.4 artisan view:cache
+
             chown -R eservices:eservices /home/services-api/htdocs/api.services.com
             find /home/services-api/htdocs/api.services.com -type d -exec chmod 775 {} \;
             find /home/services-api/htdocs/api.services.com -type f -exec chmod 664 {} \;
-            chmod -R 775 /home/services-api/htdocs/api.services.com/api-servicios/storage
-            chmod -R 775 /home/services-api/htdocs/api.services.com/api-servicios/bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+
+            echo "Laravel API deploy completed successfully"
