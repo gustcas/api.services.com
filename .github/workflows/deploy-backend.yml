@@ -1,0 +1,35 @@
+name: Deploy Laravel API to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Laravel on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/services-api/htdocs/api.services.com/api-servicios
+            git pull origin main
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            chown -R eservices:eservices /home/services-api/htdocs/api.services.com
+            find /home/services-api/htdocs/api.services.com -type d -exec chmod 775 {} \;
+            find /home/services-api/htdocs/api.services.com -type f -exec chmod 664 {} \;
+            chmod -R 775 /home/services-api/htdocs/api.services.com/api-servicios/storage
+            chmod -R 775 /home/services-api/htdocs/api.services.com/api-servicios/bootstrap/cache
