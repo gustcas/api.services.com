@@ -37,7 +37,7 @@ jobs:
             git remote set-url origin https://github.com/gustcas/api.services.com.git
             git fetch origin main
             git reset --hard origin/main
-            git clean -fd -e storage/ -e .env
+            git clean -fd -e storage/** -e .env
 
             mkdir -p storage/framework/cache/data \
                      storage/framework/sessions \
@@ -47,8 +47,13 @@ jobs:
 
             touch storage/logs/laravel.log
 
+            rm -rf public/storage
+            /usr/bin/php7.4 artisan storage:link || true
+            chown -h eservices:services-api public/storage || true
+
             chown -R eservices:services-api "$APP_DIR"
             chown -R clp:services-api storage bootstrap/cache
+            chown -R clp:services-api storage/app/public
 
             find storage bootstrap/cache -type d -exec chmod 2775 {} \;
             find storage bootstrap/cache -type f -exec chmod 664 {} \;
@@ -73,9 +78,13 @@ jobs:
             /usr/bin/php7.4 artisan view:cache
 
             chown -R clp:services-api storage bootstrap/cache
+            chown -R clp:services-api storage/app/public
+
             find storage bootstrap/cache -type d -exec chmod 2775 {} \;
             find storage bootstrap/cache -type f -exec chmod 664 {} \;
+
             chmod 666 storage/logs/laravel.log
+            chown -h eservices:services-api public/storage || true
 
             systemctl restart php7.4-fpm || true
             systemctl reload nginx || true
