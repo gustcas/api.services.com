@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\AdminLogController;
 use App\Http\Controllers\Api\SubAdminController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\AccountController;
 
 // ── Rutas públicas ─────────────────────────────────────────
 Route::post('register', [AuthController::class, 'register']);
@@ -40,6 +42,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
     Route::get('profile',  [AuthController::class, 'profile']);
     Route::post('logout',  [AuthController::class, 'logout']);
+    Route::put('account/settings', [AccountController::class, 'update']);
 
     // ── Rutas solo admin ───────────────────────────────────
     Route::middleware('admin')
@@ -116,6 +119,11 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::get('/requests/{id}/document/{doc}', [DocumentController::class, 'generate']);
 
         });
+
+    // Chat — accesible por cliente y profesional
+    Route::get('/chat/unreads',        [ChatController::class, 'unreads']);
+    Route::get('/chat/{requestId}',    [ChatController::class, 'index']);
+    Route::post('/chat/{requestId}',   [ChatController::class, 'store']);
 
     Route::middleware('client')
         ->prefix('client')
