@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ClientRequestController;
 use App\Http\Controllers\Api\AdminLogController;
 use App\Http\Controllers\Api\SubAdminController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\DocumentController;
 
 // ── Rutas públicas ─────────────────────────────────────────
 Route::post('register', [AuthController::class, 'register']);
@@ -110,6 +111,9 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
             // Profesional — verificar código e ingresar como completado
             Route::post('/requests/{id}/verify-code', [ServiceRequestController::class, 'verifyCode']);
+
+            // Generar documentos Word de capacitación
+            Route::get('/requests/{id}/document/{doc}', [DocumentController::class, 'generate']);
 
         });
 
