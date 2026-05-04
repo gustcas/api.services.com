@@ -11,15 +11,21 @@ class CheckUserActive
     {
         $user = $request->user();
 
-        if ($user && !$user->is_active) {
-            // Revocar todos sus tokens de Passport
-            $user->tokens()->delete();
+        if ($user) {
+            if (!$user->is_active) {
+                $user->tokens()->delete();
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Tu cuenta ha sido suspendida. Contacta al administrador.',
-                'code'    => 'ACCOUNT_SUSPENDED',
-            ], 403);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tu cuenta ha sido suspendida. Contacta al administrador.',
+                    'code'    => 'ACCOUNT_SUSPENDED',
+                ], 403);
+            }
+
+            // Actualiza last_seen_at en cada petición autenticada
+            \DB::table('users')
+                ->where('id', $user->id)
+                ->update(['last_seen_at' => \Carbon\Carbon::now('UTC')]);
         }
 
         return $next($request);
