@@ -14,34 +14,44 @@ class ServiceRequestController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'service_id'  => 'required|exists:services,id',
-            'description' => 'nullable|string',
-            'address' => 'nullable|string',
-            'service_date'=> 'required|date',
-            'service_time'=> 'required',
-            'budget'      => 'nullable|numeric',
-            'city_id' => 'nullable|exists:cities,id',
-            'people_count' => 'nullable|integer|min:1',
-            'people_names' => 'nullable|array',
-            'people_names.*' => 'nullable|string|max:255',
-            'people_identifications' => 'nullable|array',
-            'people_identifications.*' => 'nullable|string|max:50',
+            'category_id'             => 'required|exists:categories,id',
+            'service_id'              => 'required|exists:services,id',
+            'description'             => 'nullable|string',
+            'address'                 => 'nullable|string',
+            'service_date'            => 'required|date',
+            'service_time'            => 'required',
+            'budget'                  => 'nullable|numeric',
+            'city_id'                 => 'nullable|exists:cities,id',
+            'people_count'            => 'nullable|integer|min:1',
+            'people_names'            => 'nullable|array',
+            'people_names.*'          => 'nullable|string|max:255',
+            'people_identifications'  => 'nullable|array',
+            'people_identifications.*'=> 'nullable|string|max:50',
+            'company_name'            => 'nullable|string|max:255',
+            'company_address'         => 'nullable|string|max:255',
+            'company_owners'          => 'nullable|string|max:255',
+            'company_nit'             => 'nullable|string|max:50',
+            'company_phone'           => 'nullable|string|max:20',
         ]);
 
         $serviceRequest = ServiceRequest::create([
-            'client_id'    => $request->user()->id, // <- aquí debe ir el ID del cliente logueado
-            'category_id'  => $request->category_id,
-            'service_id'   => $request->service_id,
-            'description'  => $request->description,
-            'address'      => $request->address,
-            'service_date' => $request->service_date,
-            'service_time' => $request->service_time,
-            'people_count' => $request->people_count,
-            'people_names' => $request->people_names,
+            'client_id'              => $request->user()->id,
+            'category_id'            => $request->category_id,
+            'service_id'             => $request->service_id,
+            'description'            => $request->description,
+            'address'                => $request->address,
+            'service_date'           => $request->service_date,
+            'service_time'           => $request->service_time,
+            'people_count'           => $request->people_count,
+            'people_names'           => $request->people_names,
             'people_identifications' => $request->people_identifications,
-            'budget'       => $request->budget,
-            'city_id' => $request->city_id,
+            'company_name'           => $request->company_name,
+            'company_address'        => $request->company_address,
+            'company_owners'         => $request->company_owners,
+            'company_nit'            => $request->company_nit,
+            'company_phone'          => $request->company_phone,
+            'budget'                 => $request->budget,
+            'city_id'                => $request->city_id,
         ]);
 
         return response()->json([
@@ -74,12 +84,25 @@ class ServiceRequestController extends Controller
     {
         $professional = $request->user()->professional;
 
+        if (!$professional) {
+            return response()->json([]);
+        }
+
+        // Soporta múltiples servicios (pivot) y fallback al campo legacy service_id
+        $serviceIds = $professional->services()->pluck('services.id')->toArray();
+        if (empty($serviceIds) && $professional->service_id) {
+            $serviceIds = [$professional->service_id];
+        }
+        if (empty($serviceIds)) {
+            return response()->json([]);
+        }
+
         $requests = ServiceRequest::with('client', 'service', 'city')
             ->where(function ($q) use ($professional) {
                 $q->where('city_id', $professional->city_id)
                   ->orWhereNull('city_id');
             })
-            ->where('service_id', $professional->service_id)
+            ->whereIn('service_id', $serviceIds)
             ->where('status', 'pending')
             ->whereNull('professional_id')
             ->orderBy('created_at', 'desc')
@@ -136,6 +159,10 @@ class ServiceRequestController extends Controller
     {
         $professional = $request->user()->professional;
 
+        if (!$professional) {
+            return response()->json([]);
+        }
+
         $requests = ServiceRequest::with('client', 'service', 'city')
             ->where('professional_id', $professional->id)
             ->whereIn('status', ['accepted', 'completed'])
@@ -151,6 +178,8 @@ class ServiceRequestController extends Controller
                 'service_time' => $r->service_time,
                 'budget'       => $r->budget,
                 'status'       => $r->status,
+                'people_count' => $r->people_count,
+                'company_name' => $r->company_name,
                 'service_name' => $r->service ? $r->service->name : null,
                 'client_name'  => $r->client ? $r->client->name : 'Cliente',
                 'client_phone' => $r->client ? $r->client->phone : null,
