@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\LiveServicesController;
 
 // ── Rutas públicas ─────────────────────────────────────────
 Route::post('register', [AuthController::class, 'register']);
@@ -40,9 +41,10 @@ Route::get('/cities/{id}', [CityController::class, 'show']); // 👈 agregar
 // ── Rutas autenticadas ─────────────────────────────────────
 Route::middleware(['auth:api', 'active'])->group(function () {
 
-    Route::get('profile',  [AuthController::class, 'profile']);
-    Route::post('logout',  [AuthController::class, 'logout']);
+    Route::get('profile',   [AuthController::class, 'profile']);
+    Route::post('logout',   [AuthController::class, 'logout']);
     Route::put('account/settings', [AccountController::class, 'update']);
+    Route::get('heartbeat', fn() => response()->json(['ok' => true]));
 
     // ── Rutas solo admin ───────────────────────────────────
     Route::middleware('admin')
@@ -73,6 +75,16 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
                 // Auditoría
                 Route::get('logs', [AdminLogController::class, 'index']);
+
+                // Servicios en Vivo
+                Route::prefix('live-services')->group(function () {
+                    Route::get('summary',                    [LiveServicesController::class, 'summary']);
+                    Route::get('requests',                   [LiveServicesController::class, 'requests']);
+                    Route::get('connected-users',            [LiveServicesController::class, 'connectedUsers']);
+                    Route::get('chats',                      [LiveServicesController::class, 'chats']);
+                    Route::get('incidents',                  [LiveServicesController::class, 'incidents']);
+                    Route::get('chat/{requestId}/messages',  [LiveServicesController::class, 'chatMessages']);
+                });
 
                 // Categoria del dashboard
                 Route::get('/categories',[CategoryController::class,'index']);
