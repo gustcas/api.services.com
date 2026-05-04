@@ -22,10 +22,14 @@ class CheckUserActive
                 ], 403);
             }
 
-            // Actualiza last_seen_at en cada petición autenticada
-            \DB::table('users')
-                ->where('id', $user->id)
-                ->update(['last_seen_at' => \Carbon\Carbon::now('UTC')]);
+            // Actualiza last_seen_at solo si han pasado más de 45 segundos
+            $lastSeen  = $user->last_seen_at;
+            $staleAt   = \Carbon\Carbon::now('UTC')->subSeconds(45)->toDateTimeString();
+            if (!$lastSeen || $lastSeen < $staleAt) {
+                \DB::table('users')
+                    ->where('id', $user->id)
+                    ->update(['last_seen_at' => \Carbon\Carbon::now('UTC')]);
+            }
         }
 
         return $next($request);

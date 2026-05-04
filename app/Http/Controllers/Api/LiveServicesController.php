@@ -131,56 +131,67 @@ class LiveServicesController extends Controller
     {
         $threshold = $this->onlineThreshold();
 
-        $clients = \DB::table('users')
+        // Clientes online — una sola query para las solicitudes activas
+        $clientRows = \DB::table('users')
             ->where('role', 'client')
             ->where('is_active', true)
             ->where('last_seen_at', '>=', $threshold)
             ->select('id', 'name', 'email', 'last_seen_at')
             ->orderBy('last_seen_at', 'desc')
             ->limit(50)
-            ->get()
-            ->map(function ($u) {
-                // Buscar solicitud activa
-                $activeRequest = ServiceRequest::where('client_id', $u->id)
-                    ->whereIn('status', ['pending', 'accepted'])
-                    ->orderBy('updated_at', 'desc')
-                    ->first();
-                return [
-                    'id'             => $u->id,
-                    'name'           => $u->name,
-                    'email'          => $u->email,
-                    'last_seen_at'   => $u->last_seen_at ? Carbon::parse($u->last_seen_at)->setTimezone('America/Bogota')->format('H:i:s') : '—',
-                    'active_request' => $activeRequest ? $activeRequest->id : null,
-                    'request_status' => $activeRequest ? $activeRequest->status : null,
-                ];
-            });
+            ->get();
 
-        $professionals = \DB::table('users')
+        $clientIds = $clientRows->pluck('id')->all();
+        $clientRequests = ServiceRequest::whereIn('client_id', $clientIds)
+            ->whereIn('status', ['pending', 'accepted'])
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->keyBy('client_id');
+
+        $clients = $clientRows->map(function ($u) use ($clientRequests) {
+            $activeRequest = $clientRequests->get($u->id);
+            return [
+                'id'             => $u->id,
+                'name'           => $u->name,
+                'email'          => $u->email,
+                'last_seen_at'   => $u->last_seen_at ? Carbon::parse($u->last_seen_at)->setTimezone('America/Bogota')->format('H:i:s') : '—',
+                'active_request' => $activeRequest ? $activeRequest->id : null,
+                'request_status' => $activeRequest ? $activeRequest->status : null,
+            ];
+        });
+
+        // Profesionales online — pre-carga masiva
+        $profRows = \DB::table('users')
             ->where('role', 'professional')
             ->where('is_active', true)
             ->where('last_seen_at', '>=', $threshold)
             ->select('id', 'name', 'email', 'last_seen_at')
             ->orderBy('last_seen_at', 'desc')
             ->limit(50)
-            ->get()
-            ->map(function ($u) {
-                $prof = \App\Models\Professional::where('user_id', $u->id)->first();
-                $activeRequest = null;
-                if ($prof) {
-                    $activeRequest = ServiceRequest::where('professional_id', $prof->id)
-                        ->where('status', 'accepted')
-                        ->first();
-                }
-                return [
-                    'id'             => $u->id,
-                    'name'           => $u->name,
-                    'email'          => $u->email,
-                    'last_seen_at'   => $u->last_seen_at ? Carbon::parse($u->last_seen_at)->setTimezone('America/Bogota')->format('H:i:s') : '—',
-                    'active_request' => $activeRequest ? $activeRequest->id : null,
-                    'status'         => $prof ? $prof->status : 'unknown',
-                    'is_busy'        => $activeRequest ? true : false,
-                ];
-            });
+            ->get();
+
+        $profUserIds = $profRows->pluck('id')->all();
+        $profsMap = \App\Models\Professional::whereIn('user_id', $profUserIds)
+            ->get()->keyBy('user_id');
+
+        $profIds = $profsMap->pluck('id')->all();
+        $profRequests = ServiceRequest::whereIn('professional_id', $profIds)
+            ->where('status', 'accepted')
+            ->get()->keyBy('professional_id');
+
+        $professionals = $profRows->map(function ($u) use ($profsMap, $profRequests) {
+            $prof          = $profsMap->get($u->id);
+            $activeRequest = $prof ? $profRequests->get($prof->id) : null;
+            return [
+                'id'             => $u->id,
+                'name'           => $u->name,
+                'email'          => $u->email,
+                'last_seen_at'   => $u->last_seen_at ? Carbon::parse($u->last_seen_at)->setTimezone('America/Bogota')->format('H:i:s') : '—',
+                'active_request' => $activeRequest ? $activeRequest->id : null,
+                'status'         => $prof ? $prof->status : 'unknown',
+                'is_busy'        => $activeRequest ? true : false,
+            ];
+        });
 
         return response()->json([
             'clients'       => $clients,
@@ -199,19 +210,24 @@ class LiveServicesController extends Controller
             ->limit(100)
             ->get();
 
+        // Carga masiva: evita N+1 queries
+        $srIds      = $rows->pluck('service_request_id')->all();
+        $lastMsgIds = $rows->pluck('last_msg_id')->all();
+
+        $serviceRequests = ServiceRequest::with([
+            'client:id,name,email',
+            'professional.user:id,name,email',
+        ])->whereIn('id', $srIds)->get()->keyBy('id');
+
+        $lastMessages = ChatMessage::with('sender:id,name')
+            ->whereIn('id', $lastMsgIds)->get()->keyBy('id');
+
         $result = [];
         foreach ($rows as $row) {
-            $sr = ServiceRequest::with([
-                'client:id,name,email',
-                'professional.user:id,name,email',
-            ])->find($row->service_request_id);
-
+            $sr      = $serviceRequests->get($row->service_request_id);
             if (!$sr) continue;
 
-            $lastMsg = ChatMessage::with('sender:id,name')
-                ->where('id', $row->last_msg_id)
-                ->first();
-
+            $lastMsg  = $lastMessages->get($row->last_msg_id);
             $profUser = $sr->professional ? $sr->professional->user : null;
 
             $result[] = [
