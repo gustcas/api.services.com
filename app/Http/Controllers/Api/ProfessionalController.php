@@ -10,25 +10,30 @@ class ProfessionalController extends Controller
 {
     public function dashboard(Request $request)
     {
-        $user = $request->user();
+        $user         = $request->user();
+        $professional = $user->professional;
+
+        if ($professional) {
+            $professional->service_ids = $professional->services()->pluck('services.id')->toArray();
+        }
 
         return response()->json([
-            'success' => true,
-            'needs_profile_completion' => !$user->professional,
-            'professional' => $user->professional
+            'success'                  => true,
+            'needs_profile_completion' => !$professional,
+            'professional'             => $professional,
         ]);
     }
 
     public function storeOrUpdate(Request $request)
     {
-        $user = $request->user();
+        $user                 = $request->user();
         $existingProfessional = $user->professional;
 
-        // 🔥 Validación dinámica (si existe perfil, archivos no obligatorios)
         $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'document_number' => 'required|string',
-            'service_id' => 'required|exists:services,id',
+            'category_id'    => 'required|exists:categories,id',
+            'document_number'=> 'required|string',
+            'service_ids'    => 'required|array|min:1',
+            'service_ids.*'  => 'exists:services,id',
 
             'identity_card' => $existingProfessional
                 ? 'nullable|file|mimes:pdf,jpg,jpeg,png'
@@ -46,30 +51,26 @@ class ProfessionalController extends Controller
                 ? 'nullable|image|mimes:jpg,jpeg,png'
                 : 'required|image|mimes:jpg,jpeg,png',
 
-            'phone' => 'required|string',
-            'bio' => 'nullable|string',
+            'phone'   => 'required|string',
+            'bio'     => 'nullable|string',
             'address' => 'nullable|string',
             'city_id' => 'nullable|exists:cities,id',
         ]);
 
-        // 🔥 Mantener archivos anteriores si no se envían nuevos
-        $identityPath = $existingProfessional->identity_card ?? null;
-        $professionalCardPath = $existingProfessional->professional_card ?? null;
+        $identityPath          = $existingProfessional->identity_card    ?? null;
+        $professionalCardPath  = $existingProfessional->professional_card ?? null;
         $professionalTitlePath = $existingProfessional->professional_title ?? null;
-        $photoPath = $existingProfessional->photo ?? null;
+        $photoPath             = $existingProfessional->photo             ?? null;
 
         if ($request->hasFile('identity_card')) {
             $identityPath = $request->file('identity_card')->store('documents/identity', 'public');
         }
-
         if ($request->hasFile('professional_card')) {
             $professionalCardPath = $request->file('professional_card')->store('documents/professional_card', 'public');
         }
-
         if ($request->hasFile('professional_title')) {
             $professionalTitlePath = $request->file('professional_title')->store('documents/professional_title', 'public');
         }
-
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('documents/photo', 'public');
         }
@@ -77,24 +78,27 @@ class ProfessionalController extends Controller
         $professional = Professional::updateOrCreate(
             ['user_id' => $user->id],
             [
-                'category_id' => $request->category_id,
-                'service_id' => $request->service_id,
-                'document_number' => $request->document_number,
-                'identity_card' => $identityPath,
-                'professional_card' => $professionalCardPath,
+                'category_id'        => $request->category_id,
+                'document_number'    => $request->document_number,
+                'identity_card'      => $identityPath,
+                'professional_card'  => $professionalCardPath,
                 'professional_title' => $professionalTitlePath,
-                'photo' => $photoPath,
-                'phone' => $request->phone,
-                'bio' => $request->bio,
-                'address' => $request->address,
-                'city_id' => $request->city_id,
-                'status' => 'pending',
+                'photo'              => $photoPath,
+                'phone'              => $request->phone,
+                'bio'                => $request->bio,
+                'address'            => $request->address,
+                'city_id'            => $request->city_id,
+                'status'             => 'pending',
             ]
         );
+
+        // Sincronizar servicios en tabla pivot
+        $professional->services()->sync($request->service_ids);
+
         return response()->json([
-            'success' => true,
-            'message' => 'Perfil enviado correctamente. Pendiente de aprobación.',
-            'professional' => $professional
+            'success'      => true,
+            'message'      => 'Perfil enviado correctamente. Pendiente de aprobación.',
+            'professional' => $professional,
         ]);
     }
 
@@ -111,8 +115,8 @@ class ProfessionalController extends Controller
             ->orderBy('updated_at', 'desc')
             ->get();
 
-        $commission = 0.15;
-        $completed  = $jobs->where('status', 'completed');
+        $commission  = 0.15;
+        $completed   = $jobs->where('status', 'completed');
         $totalEarned = $completed->sum('budget') * (1 - $commission);
 
         $earnings = $jobs->map(function ($r) use ($commission) {
@@ -133,10 +137,10 @@ class ProfessionalController extends Controller
         return response()->json([
             'success' => true,
             'summary' => [
-                'total_earned'  => round($totalEarned, 2),
-                'total_jobs'    => $completed->count(),
-                'pending_jobs'  => $jobs->where('status', 'accepted')->count(),
-                'commission_pct'=> $commission * 100,
+                'total_earned'   => round($totalEarned, 2),
+                'total_jobs'     => $completed->count(),
+                'pending_jobs'   => $jobs->where('status', 'accepted')->count(),
+                'commission_pct' => $commission * 100,
             ],
             'earnings' => $earnings,
         ]);
@@ -146,16 +150,15 @@ class ProfessionalController extends Controller
     {
         $professionals = Professional::with('user')
             ->where('city_id', $request->city_id)
-            ->where('service_id', $request->service_id)
             ->where('is_verified', true)
+            ->whereHas('services', function ($q) use ($request) {
+                $q->where('services.id', $request->service_id);
+            })
             ->get();
 
         $result = [];
-
         foreach ($professionals as $p) {
-            // Buscar el servicio directo por service_id
-            $service = \App\Models\Service::find($p->service_id);
-
+            $service = \App\Models\Service::find($request->service_id);
             $result[] = [
                 'id'      => $p->id,
                 'name'    => $p->user->name,
