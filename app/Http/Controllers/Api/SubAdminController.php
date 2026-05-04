@@ -10,7 +10,18 @@ use Illuminate\Support\Facades\Hash;
 
 class SubAdminController extends Controller
 {
-    private const AVAILABLE_MODULES = ['dashboard', 'users', 'categories', 'services', 'reports', 'auditory'];
+    // Permisos disponibles por módulo
+    private const MODULE_PERMISSIONS = [
+        'dashboard'     => ['read'],
+        'users'         => ['read', 'write', 'edit', 'delete'],
+        'categories'    => ['read', 'write', 'edit', 'delete'],
+        'services'      => ['read', 'write', 'edit', 'delete'],
+        'reports'       => ['read'],
+        'auditory'      => ['read'],
+        'live_services' => ['read'],
+    ];
+
+    private const AVAILABLE_MODULES = ['dashboard', 'users', 'categories', 'services', 'reports', 'auditory', 'live_services'];
 
     public function index()
     {
@@ -21,9 +32,10 @@ class SubAdminController extends Controller
             ->map(fn($u) => $this->format($u));
 
         return response()->json([
-            'success' => true,
-            'admins'  => $admins,
-            'modules' => self::AVAILABLE_MODULES,
+            'success'            => true,
+            'admins'             => $admins,
+            'modules'            => self::AVAILABLE_MODULES,
+            'module_permissions' => self::MODULE_PERMISSIONS,
         ]);
     }
 
@@ -106,10 +118,27 @@ class SubAdminController extends Controller
 
     private function format(User $u): array
     {
-        $permissions = $u->permissions ?? [];
+        $stored  = $u->permissions ?? [];
         $modules = [];
-        foreach (self::AVAILABLE_MODULES as $mod) {
-            $modules[$mod] = (bool) ($permissions[$mod] ?? false);
+
+        foreach (self::MODULE_PERMISSIONS as $mod => $availablePerms) {
+            $raw = $stored[$mod] ?? false;
+
+            // Compatibilidad: formato antiguo era boolean
+            if (is_bool($raw) || !is_array($raw)) {
+                $enabled = (bool) $raw;
+                $entry   = ['enabled' => $enabled];
+                foreach ($availablePerms as $p) {
+                    $entry[$p] = $enabled && $p === 'read'; // solo read por defecto
+                }
+            } else {
+                $entry = ['enabled' => (bool) ($raw['enabled'] ?? false)];
+                foreach ($availablePerms as $p) {
+                    $entry[$p] = (bool) ($raw[$p] ?? false);
+                }
+            }
+
+            $modules[$mod] = $entry;
         }
 
         return [
@@ -125,8 +154,28 @@ class SubAdminController extends Controller
     private function normalizeModules(array $modules): array
     {
         $result = [];
-        foreach (self::AVAILABLE_MODULES as $mod) {
-            $result[$mod] = (bool) ($modules[$mod] ?? false);
+        foreach (self::MODULE_PERMISSIONS as $mod => $availablePerms) {
+            $raw = $modules[$mod] ?? [];
+
+            if (is_bool($raw)) {
+                $enabled = $raw;
+                $entry   = ['enabled' => $enabled];
+                foreach ($availablePerms as $p) {
+                    $entry[$p] = $enabled && $p === 'read';
+                }
+            } else {
+                $entry = ['enabled' => (bool) ($raw['enabled'] ?? false)];
+                foreach ($availablePerms as $p) {
+                    $entry[$p] = (bool) ($raw[$p] ?? false);
+                }
+                // Si enabled pero sin ningún permiso, forzar read
+                if ($entry['enabled']) {
+                    $anyPerm = array_filter($availablePerms, fn($p) => $entry[$p]);
+                    if (empty($anyPerm)) $entry['read'] = true;
+                }
+            }
+
+            $result[$mod] = $entry;
         }
         return $result;
     }

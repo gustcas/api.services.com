@@ -223,9 +223,41 @@ class AdminUserController extends Controller
         }
 
         $approved = $professional->status !== 'approved';
+
+        // Validar requisitos antes de aprobar
+        if ($approved) {
+            $missing = [];
+
+            if (empty($professional->document_number)) {
+                $missing[] = 'número de documento';
+            }
+            if (empty($professional->phone)) {
+                $missing[] = 'teléfono';
+            }
+            if (empty($professional->address)) {
+                $missing[] = 'dirección';
+            }
+
+            $hasService = $professional->service_id
+                || \DB::table('professional_services')->where('professional_id', $professional->id)->exists();
+
+            if (!$hasService) {
+                $missing[] = 'especialización / servicio asignado';
+            }
+
+            if (count($missing) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede aprobar. Faltan datos del profesional.',
+                    'missing' => $missing,
+                ], 422);
+            }
+        }
+
         $professional->update([
             'status'      => $approved ? 'approved' : 'pending',
             'is_verified' => $approved,
+            'verified_at' => $approved ? \Carbon\Carbon::now() : null,
         ]);
 
         AdminLog::record(request()->user(), 'verify', 'user', $user->id,
@@ -246,12 +278,30 @@ class AdminUserController extends Controller
     {
         $baseQuery = User::where('role', '!=', 'admin');
 
+        $total         = (clone $baseQuery)->count();
+        $clients       = (clone $baseQuery)->where('role', 'client')->count();
+        $professionals = (clone $baseQuery)->where('role', 'professional')->count();
+        $activeUsers   = (clone $baseQuery)->where('is_active', true)->count();
+        $inactiveUsers = (clone $baseQuery)->where('is_active', false)->count();
+        $pendingProfs  = \App\Models\Professional::where('status', 'pending')->count();
+        $approvedProfs = \App\Models\Professional::where('status', 'approved')->count();
+
         return [
-            'total'         => (clone $baseQuery)->count(),
-            'clients'       => (clone $baseQuery)->where('role', 'client')->count(),
-            'professionals' => (clone $baseQuery)->where('role', 'professional')->count(),
-            'verified'      => \App\Models\Professional::where('status', 'approved')->count(),
-            'pending'       => \App\Models\Professional::where('status', 'pending')->count(),
+            // Nombres que espera el frontend
+            'totalUsers'           => $total,
+            'totalClients'         => $clients,
+            'totalProfessionals'   => $professionals,
+            'activeUsers'          => $activeUsers,
+            'inactiveUsers'        => $inactiveUsers,
+            'pendingProfessionals' => $pendingProfs,
+            // Aliases por compatibilidad
+            'total'         => $total,
+            'clients'       => $clients,
+            'professionals' => $professionals,
+            'active'        => $activeUsers,
+            'inactive'      => $inactiveUsers,
+            'verified'      => $approvedProfs,
+            'pending'       => $pendingProfs,
         ];
     }
 }
