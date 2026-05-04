@@ -170,7 +170,7 @@ class SubAdminController extends Controller
                 }
                 // Si enabled pero sin ningún permiso, forzar read
                 if ($entry['enabled']) {
-                    $anyPerm = array_filter($availablePerms, fn($p) => $entry[$p]);
+                    $anyPerm = array_filter($availablePerms, fn($p) => !empty($entry[$p]));
                     if (empty($anyPerm)) $entry['read'] = true;
                 }
             }
