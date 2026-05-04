@@ -25,16 +25,20 @@ jobs:
 
             APP_DIR="/home/services-api/htdocs/api.services.com/api-servicios"
 
+            usermod -aG services-api clp || true
+            usermod -aG services-api eservices || true
+
+            chmod 750 /home/services-api
+            chmod 770 /home/services-api/htdocs
+
             cd "$APP_DIR"
 
-            echo "📦 Actualizando código..."
             git config --global --add safe.directory "$APP_DIR"
             git remote set-url origin https://github.com/gustcas/api.services.com.git
             git fetch origin main
             git reset --hard origin/main
-            git clean -fd -e storage/
+            git clean -fd -e storage/ -e .env
 
-            echo "📁 Preparando carpetas Laravel..."
             mkdir -p storage/framework/cache/data \
                      storage/framework/sessions \
                      storage/framework/views \
@@ -43,36 +47,37 @@ jobs:
 
             touch storage/logs/laravel.log
 
-            echo "🔐 Configurando permisos ANTES de artisan..."
-            chown -R eservices:eservices "$APP_DIR"
-            chown -R clp:clp storage bootstrap/cache
+            chown -R eservices:services-api "$APP_DIR"
+            chown -R clp:services-api storage bootstrap/cache
 
-            chmod -R 775 storage bootstrap/cache
-            chmod 664 storage/logs/laravel.log
+            find storage bootstrap/cache -type d -exec chmod 2775 {} \;
+            find storage bootstrap/cache -type f -exec chmod 664 {} \;
 
-            echo "📦 Instalando dependencias..."
+            chmod 666 storage/logs/laravel.log
+
+            if command -v setfacl >/dev/null 2>&1; then
+              setfacl -R -m u:clp:rwx,u:eservices:rwx,g:services-api:rwx storage bootstrap/cache
+              setfacl -R -d -m u:clp:rwx,u:eservices:rwx,g:services-api:rwx storage bootstrap/cache
+            fi
+
             /usr/bin/php7.4 /usr/local/bin/composer install --no-dev --optimize-autoloader
-
-            echo "🧱 Ejecutando migraciones..."
             /usr/bin/php7.4 artisan migrate --force
 
-            echo "🧹 Limpiando caches..."
             /usr/bin/php7.4 artisan config:clear
             /usr/bin/php7.4 artisan cache:clear
             /usr/bin/php7.4 artisan route:clear
             /usr/bin/php7.4 artisan view:clear
 
-            echo "⚡ Cacheando configuración..."
             /usr/bin/php7.4 artisan config:cache
             /usr/bin/php7.4 artisan route:cache
             /usr/bin/php7.4 artisan view:cache
 
-            echo "🔐 Reforzando permisos finales..."
-            chown -R clp:clp storage bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
-            chmod 664 storage/logs/laravel.log
+            chown -R clp:services-api storage bootstrap/cache
+            find storage bootstrap/cache -type d -exec chmod 2775 {} \;
+            find storage bootstrap/cache -type f -exec chmod 664 {} \;
+            chmod 666 storage/logs/laravel.log
 
-            echo "🔄 Reload servicios..."
+            systemctl restart php7.4-fpm || true
             systemctl reload nginx || true
 
             echo "✅ Laravel API deploy completed successfully"
