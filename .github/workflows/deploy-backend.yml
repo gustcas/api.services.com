@@ -25,29 +25,51 @@ jobs:
 
             cd /home/services-api/htdocs/api.services.com/api-servicios
 
+            echo "📦 Actualizando código..."
             git config --global --add safe.directory /home/services-api/htdocs/api.services.com/api-servicios
             git remote set-url origin https://github.com/gustcas/api.services.com.git
-
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
 
+            echo "📦 Instalando dependencias..."
             /usr/bin/php7.4 /usr/local/bin/composer install --no-dev --optimize-autoloader
 
+            echo "🧱 Ejecutando migraciones..."
             /usr/bin/php7.4 artisan migrate --force
 
+            echo "🧹 Limpiando caches..."
             /usr/bin/php7.4 artisan config:clear
             /usr/bin/php7.4 artisan cache:clear
             /usr/bin/php7.4 artisan route:clear
             /usr/bin/php7.4 artisan view:clear
 
+            echo "⚙️ Configurando permisos CORRECTOS..."
+
+            # Mantener owner del proyecto
+            chown -R eservices:eservices /home/services-api/htdocs/api.services.com
+
+            # 🔥 IMPORTANTE: permisos para Laravel runtime
+            mkdir -p storage/framework/cache/data \
+                     storage/framework/sessions \
+                     storage/framework/views \
+                     storage/logs \
+                     bootstrap/cache
+
+            touch storage/logs/laravel.log
+
+            # 👇 ESTE ES EL FIX CLAVE
+            chown -R clp:clp storage bootstrap/cache
+
+            chmod -R 775 storage bootstrap/cache
+            chmod 664 storage/logs/laravel.log
+
+            echo "⚡ Cacheando configuración..."
             /usr/bin/php7.4 artisan config:cache
             /usr/bin/php7.4 artisan route:cache
             /usr/bin/php7.4 artisan view:cache
 
-            chown -R eservices:eservices /home/services-api/htdocs/api.services.com
-            find /home/services-api/htdocs/api.services.com -type d -exec chmod 775 {} \;
-            find /home/services-api/htdocs/api.services.com -type f -exec chmod 664 {} \;
-            chmod -R 775 storage bootstrap/cache
+            echo "🔄 Reload servicios..."
+            systemctl reload nginx || true
 
-            echo "Laravel API deploy completed successfully"
+            echo "✅ Laravel API deploy completed successfully"
