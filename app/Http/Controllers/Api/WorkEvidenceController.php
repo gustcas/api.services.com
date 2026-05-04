@@ -18,7 +18,7 @@ class WorkEvidenceController extends Controller
         return response()->json($evidences->map(function ($e) {
             return [
                 'id'        => $e->id,
-                'file_url'  => Storage::url($e->file_path),
+                'file_url'  => url(Storage::url($e->file_path)),
                 'file_type' => $e->file_type,
                 'note'      => $e->note,
                 'created_at'=> $e->created_at->format('d/m/Y H:i'),
@@ -59,7 +59,7 @@ class WorkEvidenceController extends Controller
 
         return response()->json([
             'message'  => 'Evidencia subida correctamente',
-            'file_url' => Storage::url($evidence->file_path),
+            'file_url' => url(Storage::url($evidence->file_path)),
             'id'       => $evidence->id,
         ], 201);
     }
