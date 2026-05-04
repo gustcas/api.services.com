@@ -43,11 +43,18 @@ class AdminUserController extends Controller
                     break;
 
                 case 'verified':
-                    $query->whereNotNull('email_verified_at');
+                    $query->whereHas('professional', function ($q) {
+                        $q->where('status', 'approved');
+                    });
                     break;
 
                 case 'pending':
-                    $query->whereNull('email_verified_at');
+                    $query->where(function ($q) {
+                        $q->whereDoesntHave('professional')
+                          ->orWhereHas('professional', function ($q2) {
+                              $q2->where('status', 'pending');
+                          });
+                    })->where('role', 'professional');
                     break;
             }
         }
@@ -240,14 +247,11 @@ class AdminUserController extends Controller
         $baseQuery = User::where('role', '!=', 'admin');
 
         return [
-            'totalUsers'           => (clone $baseQuery)->count(),
-            'totalClients'         => (clone $baseQuery)->where('role', 'client')->count(),
-            'totalProfessionals'   => (clone $baseQuery)->where('role', 'professional')->count(),
-            'activeUsers'          => (clone $baseQuery)->where('is_active', true)->count(),
-            'inactiveUsers'        => (clone $baseQuery)->where('is_active', false)->count(),
-            'pendingProfessionals' => \App\Models\Professional::where('status', 'pending')->count(),
-            'totalRequests'        => \App\Models\ServiceRequest::count(),
-            'completedRequests'    => \App\Models\ServiceRequest::where('status', 'completed')->count(),
+            'total'         => (clone $baseQuery)->count(),
+            'clients'       => (clone $baseQuery)->where('role', 'client')->count(),
+            'professionals' => (clone $baseQuery)->where('role', 'professional')->count(),
+            'verified'      => \App\Models\Professional::where('status', 'approved')->count(),
+            'pending'       => \App\Models\Professional::where('status', 'pending')->count(),
         ];
     }
 }
