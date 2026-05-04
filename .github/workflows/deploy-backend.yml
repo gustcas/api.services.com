@@ -23,14 +23,32 @@ jobs:
             set -e
             export COMPOSER_ALLOW_SUPERUSER=1
 
-            cd /home/services-api/htdocs/api.services.com/api-servicios
+            APP_DIR="/home/services-api/htdocs/api.services.com/api-servicios"
+
+            cd "$APP_DIR"
 
             echo "📦 Actualizando código..."
-            git config --global --add safe.directory /home/services-api/htdocs/api.services.com/api-servicios
+            git config --global --add safe.directory "$APP_DIR"
             git remote set-url origin https://github.com/gustcas/api.services.com.git
             git fetch origin main
             git reset --hard origin/main
-            git clean -fd
+            git clean -fd -e storage/
+
+            echo "📁 Preparando carpetas Laravel..."
+            mkdir -p storage/framework/cache/data \
+                     storage/framework/sessions \
+                     storage/framework/views \
+                     storage/logs \
+                     bootstrap/cache
+
+            touch storage/logs/laravel.log
+
+            echo "🔐 Configurando permisos ANTES de artisan..."
+            chown -R eservices:eservices "$APP_DIR"
+            chown -R clp:clp storage bootstrap/cache
+
+            chmod -R 775 storage bootstrap/cache
+            chmod 664 storage/logs/laravel.log
 
             echo "📦 Instalando dependencias..."
             /usr/bin/php7.4 /usr/local/bin/composer install --no-dev --optimize-autoloader
@@ -44,30 +62,15 @@ jobs:
             /usr/bin/php7.4 artisan route:clear
             /usr/bin/php7.4 artisan view:clear
 
-            echo "⚙️ Configurando permisos CORRECTOS..."
-
-            # Mantener owner del proyecto
-            chown -R eservices:eservices /home/services-api/htdocs/api.services.com
-
-            # 🔥 IMPORTANTE: permisos para Laravel runtime
-            mkdir -p storage/framework/cache/data \
-                     storage/framework/sessions \
-                     storage/framework/views \
-                     storage/logs \
-                     bootstrap/cache
-
-            touch storage/logs/laravel.log
-
-            # 👇 ESTE ES EL FIX CLAVE
-            chown -R clp:clp storage bootstrap/cache
-
-            chmod -R 775 storage bootstrap/cache
-            chmod 664 storage/logs/laravel.log
-
             echo "⚡ Cacheando configuración..."
             /usr/bin/php7.4 artisan config:cache
             /usr/bin/php7.4 artisan route:cache
             /usr/bin/php7.4 artisan view:cache
+
+            echo "🔐 Reforzando permisos finales..."
+            chown -R clp:clp storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+            chmod 664 storage/logs/laravel.log
 
             echo "🔄 Reload servicios..."
             systemctl reload nginx || true
