@@ -23,7 +23,8 @@ class Professional extends Model
         'address',
         'city_id', 
         'status',
-        'is_verified'
+        'is_verified',
+        'verified_at',
     ];
 
     public function user()
