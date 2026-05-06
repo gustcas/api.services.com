@@ -107,19 +107,24 @@ class LiveServicesController extends Controller
                     && $profUser->last_seen_at >= $threshold;
 
                 return [
-                    'id'               => $sr->id,
-                    'service_name'     => $sr->service ? $sr->service->name : 'Servicio',
-                    'client_name'      => $sr->client ? $sr->client->name : '—',
-                    'client_email'     => $sr->client ? $sr->client->email : '—',
-                    'client_online'    => $clientOnline,
-                    'professional_name'=> $profUser ? $profUser->name : null,
+                    'id'                => $sr->id,
+                    'service_name'      => $sr->service ? $sr->service->name : 'Servicio',
+                    'client_name'       => $sr->client ? $sr->client->name : '—',
+                    'client_email'      => $sr->client ? $sr->client->email : '—',
+                    'client_online'     => $clientOnline,
+                    'professional_name' => $profUser ? $profUser->name : null,
                     'professional_email'=> $profUser ? $profUser->email : null,
                     'professional_online' => $profOnline,
-                    'status'           => $sr->status,
-                    'budget'           => $sr->budget,
-                    'created_at'       => $sr->created_at ? $sr->created_at->setTimezone('America/Bogota')->format('d/m H:i') : '—',
-                    'updated_at'       => $sr->updated_at ? $sr->updated_at->setTimezone('America/Bogota')->format('d/m H:i') : '—',
-                    'elapsed'          => $sr->created_at ? $this->elapsed($sr->created_at) : '—',
+                    'status'            => $sr->status,
+                    'budget'            => $sr->budget,
+                    'description'       => $sr->description,
+                    'address'           => $sr->address,
+                    'service_date'      => $sr->service_date,
+                    'service_time'      => $sr->service_time,
+                    'people_count'      => $sr->people_count,
+                    'created_at'        => $sr->created_at ? $sr->created_at->setTimezone('America/Bogota')->format('d/m H:i') : '—',
+                    'updated_at'        => $sr->updated_at ? $sr->updated_at->setTimezone('America/Bogota')->format('d/m H:i') : '—',
+                    'elapsed'           => $sr->created_at ? $this->elapsed($sr->created_at) : '—',
                 ];
             });
 
@@ -306,6 +311,70 @@ class LiveServicesController extends Controller
             'client_name'          => $sr->client ? $sr->client->name : '—',
             'professional_name'    => $profUser ? $profUser->name : '—',
         ]);
+    }
+
+    // ── Profesionales disponibles para reasignar ───────────────
+    public function availableProfessionals($requestId)
+    {
+        $sr        = ServiceRequest::findOrFail($requestId);
+        $threshold = Carbon::now('UTC')->subSeconds(60)->toDateTimeString();
+
+        $onlineUserIds = \DB::table('users')
+            ->where('role', 'professional')
+            ->where('is_active', true)
+            ->where('last_seen_at', '>=', $threshold)
+            ->pluck('id');
+
+        $busyProfIds = ServiceRequest::where('status', 'accepted')
+            ->whereNotNull('professional_id')
+            ->pluck('professional_id');
+
+        $professionals = \App\Models\Professional::with('user')
+            ->whereIn('user_id', $onlineUserIds)
+            ->where('is_verified', true)
+            ->whereNotIn('id', $busyProfIds)
+            ->whereHas('services', function ($q) use ($sr) {
+                $q->where('services.id', $sr->service_id);
+            })
+            ->get()
+            ->map(fn($p) => [
+                'id'   => $p->id,
+                'name' => $p->user ? $p->user->name : '—',
+            ]);
+
+        return response()->json(['professionals' => $professionals]);
+    }
+
+    // ── Reasignar solicitud a profesional ──────────────────────
+    public function reassign(\Illuminate\Http\Request $request, $requestId)
+    {
+        $request->validate(['professional_id' => 'required|exists:professionals,id']);
+
+        $sr = ServiceRequest::where('id', $requestId)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        $professional = \App\Models\Professional::with('user')->findOrFail($request->professional_id);
+
+        $serviceIds = $professional->services()->pluck('services.id')->toArray();
+        if (!in_array($sr->service_id, $serviceIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El profesional no tiene habilitado este servicio.',
+            ], 422);
+        }
+
+        $sr->update([
+            'professional_id' => $professional->id,
+            'status'          => 'accepted',
+        ]);
+
+        \App\Models\AdminLog::record(
+            $request->user(), 'reassign', 'service-request', $sr->id,
+            "Reasignó la solicitud #{$requestId} al profesional {$professional->user->name}"
+        );
+
+        return response()->json(['success' => true, 'message' => 'Solicitud reasignada correctamente.']);
     }
 
     // ── Helper: tiempo transcurrido ────────────────────────────
