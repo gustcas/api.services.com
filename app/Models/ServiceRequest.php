@@ -12,6 +12,8 @@ class ServiceRequest extends Model
         'service_id',
         'description',
         'address',
+        'lat',
+        'lng',
         'city_id',
         'service_date',
         'service_time',
