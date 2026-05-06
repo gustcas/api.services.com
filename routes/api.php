@@ -83,7 +83,9 @@ Route::middleware(['auth:api', 'active'])->group(function () {
                     Route::get('connected-users',            [LiveServicesController::class, 'connectedUsers']);
                     Route::get('chats',                      [LiveServicesController::class, 'chats']);
                     Route::get('incidents',                  [LiveServicesController::class, 'incidents']);
-                    Route::get('chat/{requestId}/messages',  [LiveServicesController::class, 'chatMessages']);
+                    Route::get('chat/{requestId}/messages',       [LiveServicesController::class, 'chatMessages']);
+                    Route::get('requests/{requestId}/available-professionals', [LiveServicesController::class, 'availableProfessionals']);
+                    Route::post('requests/{requestId}/reassign', [LiveServicesController::class, 'reassign']);
                 });
 
                 // Categoria del dashboard

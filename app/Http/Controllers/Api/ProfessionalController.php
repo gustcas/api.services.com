@@ -89,6 +89,8 @@ class ProfessionalController extends Controller
                 'address'            => $request->address,
                 'city_id'            => $request->city_id,
                 'status'             => 'pending',
+                'is_verified'        => false,
+                'verified_at'        => null,
             ]
         );
 
@@ -115,32 +117,46 @@ class ProfessionalController extends Controller
             ->orderBy('updated_at', 'desc')
             ->get();
 
-        $commission  = 0.15;
-        $completed   = $jobs->where('status', 'completed');
-        $totalEarned = $completed->sum('budget') * (1 - $commission);
+        $completed = $jobs->where('status', 'completed');
 
-        $earnings = $jobs->map(function ($r) use ($commission) {
-            $gross = (float) $r->budget;
+        $earnings = $jobs->map(function ($r) {
+            $gross       = (float) $r->budget;
+            $alliesPct   = $r->service ? (float) $r->service->allies_percentage : 0;
+            $totalPct    = $r->service
+                ? ($alliesPct
+                    + (float) $r->service->payment_gateway_commission
+                    + (float) $r->service->imavicx_commission
+                    + (float) $r->service->asecalidad_commission
+                    + (float) $r->service->maintenance_percentage)
+                : 100;
+
+            if (abs($totalPct - 100) > 0.01) {
+                \Log::warning("Service {$r->service_id} percentages sum to {$totalPct}%, expected 100%");
+            }
+
+            $netAmount = round($gross * $alliesPct / 100, 2);
+
             return [
                 'id'           => $r->id,
                 'service_name' => $r->service ? $r->service->name : 'Servicio',
                 'client_name'  => $r->client ? $r->client->name : 'Cliente',
                 'service_date' => $r->service_date,
                 'amount'       => $gross,
-                'commission'   => round($gross * $commission, 2),
-                'net_amount'   => round($gross * (1 - $commission), 2),
+                'allies_pct'   => $alliesPct,
+                'net_amount'   => $netAmount,
                 'status'       => $r->status,
                 'completed_at' => $r->completed_at,
             ];
         });
 
+        $totalEarned = $earnings->where('status', 'completed')->sum('net_amount');
+
         return response()->json([
             'success' => true,
             'summary' => [
-                'total_earned'   => round($totalEarned, 2),
-                'total_jobs'     => $completed->count(),
-                'pending_jobs'   => $jobs->where('status', 'accepted')->count(),
-                'commission_pct' => $commission * 100,
+                'total_earned' => round($totalEarned, 2),
+                'total_jobs'   => $completed->count(),
+                'pending_jobs' => $jobs->where('status', 'accepted')->count(),
             ],
             'earnings' => $earnings,
         ]);
