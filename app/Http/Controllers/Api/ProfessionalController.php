@@ -14,7 +14,8 @@ class ProfessionalController extends Controller
         $professional = $user->professional;
 
         if ($professional) {
-            $professional->service_ids = $professional->services()->pluck('services.id')->toArray();
+            $professional->service_ids  = $professional->services()->pluck('services.id')->toArray();
+            $professional->category_ids = $professional->categories()->pluck('categories.id')->toArray();
         }
 
         return response()->json([
@@ -30,7 +31,8 @@ class ProfessionalController extends Controller
         $existingProfessional = $user->professional;
 
         $request->validate([
-            'category_id'    => 'required|exists:categories,id',
+            'category_ids'   => 'required|array|min:1',
+            'category_ids.*' => 'exists:categories,id',
             'document_number'=> 'required|string',
             'service_ids'    => 'required|array|min:1',
             'service_ids.*'  => 'exists:services,id',
@@ -78,7 +80,7 @@ class ProfessionalController extends Controller
         $professional = Professional::updateOrCreate(
             ['user_id' => $user->id],
             [
-                'category_id'        => $request->category_id,
+                'category_id'        => $request->category_ids[0], // cache del primer
                 'document_number'    => $request->document_number,
                 'identity_card'      => $identityPath,
                 'professional_card'  => $professionalCardPath,
@@ -94,7 +96,7 @@ class ProfessionalController extends Controller
             ]
         );
 
-        // Sincronizar servicios en tabla pivot
+        $professional->categories()->sync($request->category_ids);
         $professional->services()->sync($request->service_ids);
 
         return response()->json([

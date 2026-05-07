@@ -21,7 +21,7 @@ class Professional extends Model
         'phone',
         'bio',
         'address',
-        'city_id', 
+        'city_id',
         'status',
         'is_verified',
         'verified_at',
@@ -37,12 +37,14 @@ class Professional extends Model
         return $this->belongsTo(Category::class);
     }
 
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'professional_categories');
+    }
+
     public function services()
     {
-        return $this->belongsToMany(
-            Service::class,
-            'professional_services'
-        );
+        return $this->belongsToMany(Service::class, 'professional_services');
     }
 
     public function city()
