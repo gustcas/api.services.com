@@ -13,7 +13,7 @@ class AdminUserController extends Controller
     // ── Lista usuarios con filtros, búsqueda y paginación ──────────
     public function index(Request $request)
     {
-        $query = User::with('professional.category')
+        $query = User::with(['professional.category', 'professional.categories'])
             ->where('role', '!=', 'admin');
 
             
@@ -83,7 +83,7 @@ class AdminUserController extends Controller
     // ── Ver detalle de un usuario ──────────────────────────────────
     public function show(User $user)
     {
-        $user->load('professional.category');
+        $user->load(['professional.category', 'professional.categories']);
 
         return response()->json([
             'success' => true,
@@ -270,6 +270,7 @@ class AdminUserController extends Controller
             'message'      => $approved ? 'Profesional verificado.' : 'Verificación removida.',
             'is_verified'  => $professional->is_verified,
             'status'       => $professional->status,
+            'verified_at'  => $professional->verified_at,
         ]);
     }
 
