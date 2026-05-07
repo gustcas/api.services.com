@@ -36,7 +36,82 @@ Route::get('/professionals', function () {
 
 // Ciudades del dashboard
 Route::get('/cities', [CityController::class, 'index']);
-Route::get('/cities/{id}', [CityController::class, 'show']); // 👈 agregar
+Route::get('/cities/{id}', [CityController::class, 'show']);
+
+// Proxy geocodificación
+Route::get('/geocode', function (\Illuminate\Http\Request $request) {
+    $type = $request->query('type', 'search');
+
+    if ($type === 'reverse') {
+        // Nominatim para geocodificación inversa (pin → dirección)
+        $resp = \Illuminate\Support\Facades\Http::withoutVerifying()
+            ->withHeaders(['Accept-Language' => 'es', 'User-Agent' => 'iService/1.0'])
+            ->get('https://nominatim.openstreetmap.org/reverse', [
+                'format'         => 'json',
+                'lat'            => $request->query('lat'),
+                'lon'            => $request->query('lng'),
+                'addressdetails' => '1',
+            ]);
+        return response()->json($resp->json());
+    }
+
+    // Photon (Komoot) — normalizar query antes de buscar
+    $raw = trim($request->query('q', ''));
+
+    // Expandir abreviaturas colombianas y quitar # (Photon no los maneja bien)
+    $normalized = $raw;
+    $normalized = preg_replace('/\bCl\.?\s*/i',  'Calle ',         $normalized);
+    $normalized = preg_replace('/\bCra?\.?\s*/i', 'Carrera ',       $normalized);
+    $normalized = preg_replace('/\bKr\.?\s*/i',   'Carrera ',       $normalized);
+    $normalized = preg_replace('/\bAv\.?\s*/i',   'Avenida ',       $normalized);
+    $normalized = preg_replace('/\bDg\.?\s*/i',   'Diagonal ',      $normalized);
+    $normalized = preg_replace('/\bTv\.?\s*/i',   'Transversal ',   $normalized);
+    $normalized = str_replace('#', ' ', $normalized);
+    $normalized = preg_replace('/\s+/', ' ', trim($normalized));
+
+    // Agregar Colombia si no está
+    if (stripos($normalized, 'colombia') === false) {
+        $normalized .= ', Colombia';
+    }
+
+    $resp = \Illuminate\Support\Facades\Http::withoutVerifying()
+        ->withHeaders(['User-Agent' => 'iService/1.0'])
+        ->get('https://photon.komoot.io/api/', [
+            'q'     => $normalized,
+            'limit' => (int) $request->query('limit', 6),
+        ]);
+
+    $features = $resp->json('features') ?? [];
+    $results  = array_map(function ($f) {
+        $p        = $f['properties'] ?? [];
+        $geo      = $f['geometry']['coordinates'] ?? [0, 0];
+        $name     = $p['name']        ?? '';
+        $street   = $p['street']      ?? $name;
+        $housenum = $p['housenumber'] ?? '';
+        $locality = $p['locality']    ?? '';
+        $district = $p['district']    ?? '';
+        $city     = $p['city']        ?? $p['state'] ?? '';
+
+        // Si tiene número → "Calle X # N"; si es calle → usar name
+        $road    = $housenum ? trim("$street # $housenum") : ($p['type'] === 'street' ? $name : $street);
+        $suburb  = $locality ?: $district;
+        $display = implode(', ', array_filter([$road, $suburb, $city]));
+
+        return [
+            'lat'          => (float) $geo[1],
+            'lon'          => (float) $geo[0],
+            'display_name' => $display ?: $name,
+            'address'      => [
+                'road'         => $road,
+                'house_number' => $housenum,
+                'suburb'       => $suburb,
+                'city'         => $city,
+            ],
+        ];
+    }, $features);
+
+    return response()->json($results);
+});
 
 // ── Rutas autenticadas ─────────────────────────────────────
 Route::middleware(['auth:api', 'active'])->group(function () {
@@ -86,6 +161,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
                     Route::get('chat/{requestId}/messages',       [LiveServicesController::class, 'chatMessages']);
                     Route::get('requests/{requestId}/available-professionals', [LiveServicesController::class, 'availableProfessionals']);
                     Route::post('requests/{requestId}/reassign', [LiveServicesController::class, 'reassign']);
+                    Route::get('requests/{requestId}/evidences', [WorkEvidenceController::class, 'index']);
                 });
 
                 // Categoria del dashboard
