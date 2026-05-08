@@ -36,6 +36,10 @@ class ServiceRequestController extends Controller
             'company_phone'           => 'nullable|string|max:20',
         ]);
 
+        // Usar precio fijo del servicio si existe
+        $service = \App\Models\Service::find($request->service_id);
+        $budget  = $service ? $service->price : ($request->budget ?? 0);
+
         $serviceRequest = ServiceRequest::create([
             'client_id'              => $request->user()->id,
             'category_id'            => $request->category_id,
@@ -54,13 +58,18 @@ class ServiceRequestController extends Controller
             'company_owners'         => $request->company_owners,
             'company_nit'            => $request->company_nit,
             'company_phone'          => $request->company_phone,
-            'budget'                 => $request->budget,
+            'budget'                 => $budget,
             'city_id'                => $request->city_id,
+            'status'                 => 'payment_pending', // inactiva hasta confirmar pago
+            'payment_status'         => 'pending_payment',
         ]);
 
         return response()->json([
-            'message' => 'Solicitud creada correctamente',
-            'data' => $serviceRequest
+            'success'            => true,
+            'message'            => 'Solicitud creada. Procede al pago para activarla.',
+            'service_request_id' => $serviceRequest->id,
+            'amount'             => $budget,
+            'amount_formatted'   => '$' . number_format($budget, 0, ',', '.') . ' COP',
         ], 201);
     }
 
@@ -102,10 +111,14 @@ class ServiceRequestController extends Controller
         }
 
         $requests = ServiceRequest::with('client', 'service', 'city')
-            ->where(function ($q) use ($professional) {
-                $q->where('city_id', $professional->city_id)
-                  ->orWhereNull('city_id');
+            ->when($professional->city_id, function ($q) use ($professional) {
+                // Si el profesional tiene ciudad, mostrar SRs de su ciudad o virtuales
+                $q->where(function ($inner) use ($professional) {
+                    $inner->where('city_id', $professional->city_id)
+                          ->orWhereNull('city_id');
+                });
             })
+            // Si el profesional no tiene ciudad asignada, no filtra por ciudad (ve todos)
             ->whereIn('service_id', $serviceIds)
             ->where('status', 'pending')
             ->whereNull('professional_id')

@@ -18,6 +18,13 @@ use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\LiveServicesController;
+use App\Http\Controllers\Api\WompiCheckoutController;
+use App\Http\Controllers\Api\WompiPayoutsController;
+use App\Http\Controllers\Api\ProfessionalPaymentInfoController;
+
+// ── Wompi webhooks (públicos, sin CSRF ni autenticación) ───
+Route::post('wompi/webhook',         [WompiCheckoutController::class,  'webhook']);
+Route::post('wompi/payouts-webhook', [WompiPayoutsController::class,   'webhook']);
 
 // ── Rutas públicas ─────────────────────────────────────────
 Route::post('register', [AuthController::class, 'register']);
@@ -151,6 +158,20 @@ Route::middleware(['auth:api', 'active'])->group(function () {
                 // Auditoría
                 Route::get('logs', [AdminLogController::class, 'index']);
 
+                // Pagos al cliente (checkout)
+                Route::get('payments',          [WompiCheckoutController::class, 'adminPayments']);
+                Route::get('payments/stats',    [WompiCheckoutController::class, 'paymentStats']);
+                Route::get('payments/pending-payouts', [WompiCheckoutController::class, 'pendingPayouts']);
+                // Solo DEV: simular pago aprobado en una solicitud
+                Route::post('payments/{serviceRequestId}/simulate', [WompiCheckoutController::class, 'simulatePayment']);
+
+                // Dispersiones al profesional (payouts)
+                Route::prefix('payouts')->group(function () {
+                    Route::get('/',                   [WompiPayoutsController::class, 'index']);
+                    Route::get('/{id}',               [WompiPayoutsController::class, 'show']);
+                    Route::post('/{serviceRequestId}/disburse', [WompiPayoutsController::class, 'disburse']);
+                });
+
                 // Servicios en Vivo
                 Route::prefix('live-services')->group(function () {
                     Route::get('summary',                    [LiveServicesController::class, 'summary']);
@@ -191,6 +212,11 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::get('/earnings',  [ProfessionalController::class, 'earnings']);
             Route::post('/profile', [ProfessionalController::class, 'storeOrUpdate']);
 
+            // Datos bancarios para dispersión de pagos
+            Route::get('/payment-info',  [ProfessionalPaymentInfoController::class, 'show']);
+            Route::post('/payment-info', [ProfessionalPaymentInfoController::class, 'store']);
+            Route::get('/banks',         [ProfessionalPaymentInfoController::class, 'banks']);
+
             Route::get('/requests/available', [ServiceRequestController::class, 'available']);
             Route::post('/requests/{id}/accept', [ServiceRequestController::class, 'accept']);
 
@@ -220,14 +246,21 @@ Route::middleware(['auth:api', 'active'])->group(function () {
         ->group(function() {
             Route::post('/service-request', [ServiceRequestController::class, 'store']);
             Route::get('/service-request/{id}/status', [ServiceRequestController::class, 'checkStatus']);
-            Route::get('/professionals-available', [ProfessionalController::class, 'availableForClient']); 
+            Route::get('/professionals-available', [ProfessionalController::class, 'availableForClient']);
 
             // Cliente — ver sus solicitudes
             Route::get('/requests', [ClientRequestController::class, 'index']);
 
+            // Cliente — cancelar solicitud con pago pendiente
+            Route::delete('/requests/{id}', [ClientRequestController::class, 'cancel']);
+
             // Cliente — generar código de aprobación
             Route::post('/requests/{id}/generate-code', [ClientRequestController::class, 'generateCode']);
 
-
+            // Wompi — iniciar pago y consultar estado
+            Route::post('/payment/init',    [WompiCheckoutController::class, 'initPayment']);
+            Route::post('/payment/confirm', [WompiCheckoutController::class, 'confirmPayment']);
+            Route::get('/payment/status',   [WompiCheckoutController::class, 'checkPayment']);
+            Route::get('/payment/acceptance-token', [WompiCheckoutController::class, 'acceptanceToken']);
         });
 });

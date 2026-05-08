@@ -51,4 +51,9 @@ class Professional extends Model
     {
         return $this->belongsTo(City::class);
     }
+
+    public function paymentInfo()
+    {
+        return $this->hasOne(ProfessionalPaymentInfo::class);
+    }
 }
