@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ServiceRequest;
 use App\Models\WorkEvidence;
+use App\Services\WompiPayoutsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class WorkEvidenceController extends Controller
@@ -73,7 +75,20 @@ class WorkEvidenceController extends Controller
             ->where('status', 'accepted')
             ->firstOrFail();
 
-        $serviceRequest->update(['status' => 'completed']);
+        $serviceRequest->update([
+            'status'        => 'completed',
+            'payout_status' => 'pending_payout',
+        ]);
+
+        // Dispersión automática si el cliente ya pagó
+        if ($serviceRequest->payment_status === 'paid') {
+            try {
+                $serviceRequest->load(['professional.paymentInfo', 'service']);
+                app(WompiPayoutsService::class)->disburse($serviceRequest, 'auto');
+            } catch (\Exception $e) {
+                Log::error("Auto-payout error SR#{$serviceRequest->id}: " . $e->getMessage());
+            }
+        }
 
         return response()->json(['message' => 'Trabajo marcado como completado']);
     }
