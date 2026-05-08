@@ -17,11 +17,12 @@ class SubAdminController extends Controller
         'categories'    => ['read', 'write', 'edit', 'delete'],
         'services'      => ['read', 'write', 'edit', 'delete'],
         'reports'       => ['read'],
+        'payments'      => ['read'],
         'auditory'      => ['read'],
         'live_services' => ['read'],
     ];
 
-    private const AVAILABLE_MODULES = ['dashboard', 'users', 'categories', 'services', 'reports', 'auditory', 'live_services'];
+    private const AVAILABLE_MODULES = ['dashboard', 'users', 'categories', 'services', 'reports', 'payments', 'auditory', 'live_services'];
 
     public function index()
     {

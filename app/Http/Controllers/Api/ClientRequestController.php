@@ -42,6 +42,19 @@ class ClientRequestController extends Controller
         }));
     }
 
+    // Cancelar solicitud con pago pendiente
+    public function cancel(Request $request, $id)
+    {
+        $sr = ServiceRequest::where('id', $id)
+            ->where('client_id', $request->user()->id)
+            ->where('status', 'payment_pending')
+            ->firstOrFail();
+
+        $sr->delete();
+
+        return response()->json(['success' => true, 'message' => 'Solicitud cancelada.']);
+    }
+
     // Generar código de 6 dígitos
     public function generateCode(Request $request, $id)
     {
