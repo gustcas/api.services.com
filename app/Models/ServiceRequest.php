@@ -22,6 +22,8 @@ class ServiceRequest extends Model
         'people_identifications',
         'budget',
         'status',
+        'payment_status',
+        'payout_status',
         'professional_id',
         'completion_code',
         'completion_code_expires_at'
@@ -52,4 +54,13 @@ class ServiceRequest extends Model
         return $this->belongsTo(Professional::class);
     }
 
+    public function payment()
+    {
+        return $this->hasOne(Payment::class);
+    }
+
+    public function payout()
+    {
+        return $this->hasOne(Payout::class);
+    }
 }
