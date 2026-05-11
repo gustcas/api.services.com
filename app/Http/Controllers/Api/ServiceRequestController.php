@@ -36,9 +36,11 @@ class ServiceRequestController extends Controller
             'company_phone'           => 'nullable|string|max:20',
         ]);
 
-        // Usar precio fijo del servicio si existe
-        $service = \App\Models\Service::find($request->service_id);
-        $budget  = $service ? $service->price : ($request->budget ?? 0);
+        // Calcular precio: precio base × cantidad de personas
+        $service     = \App\Models\Service::find($request->service_id);
+        $basePrice   = $service ? (float) $service->price : (float) ($request->budget ?? 0);
+        $peopleCount = max(1, (int) ($request->people_count ?? 1));
+        $budget      = $basePrice * $peopleCount;
 
         $serviceRequest = ServiceRequest::create([
             'client_id'              => $request->user()->id,
@@ -63,6 +65,15 @@ class ServiceRequestController extends Controller
             'status'                 => 'payment_pending', // inactiva hasta confirmar pago
             'payment_status'         => 'pending_payment',
         ]);
+
+        $serviceName = $serviceRequest->service ? $serviceRequest->service->name : 'servicio';
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'create',
+            'service_request',
+            $serviceRequest->id,
+            "Cliente {$request->user()->name} creó solicitud #{$serviceRequest->id} ({$serviceName})"
+        );
 
         return response()->json([
             'success'            => true,
@@ -158,6 +169,15 @@ class ServiceRequestController extends Controller
             'status'          => 'accepted',
         ]);
 
+        $serviceName = optional($serviceRequest->service)->name ?? 'servicio';
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'update',
+            'service_request',
+            $serviceRequest->id,
+            "Profesional {$request->user()->name} aceptó solicitud #{$serviceRequest->id} ({$serviceName})"
+        );
+
         // Enviar email al cliente
         try {
             $serviceRequest->load(['client', 'service', 'professional.user']);
@@ -244,6 +264,15 @@ class ServiceRequestController extends Controller
             'completion_code'            => null,
             'completion_code_expires_at' => null,
         ]);
+
+        $serviceName = optional($serviceRequest->service)->name ?? 'servicio';
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'complete',
+            'service_request',
+            $serviceRequest->id,
+            "Profesional {$request->user()->name} completó solicitud #{$serviceRequest->id} ({$serviceName}) con código"
+        );
 
         // Enviar emails al cliente y al profesional
         try {
