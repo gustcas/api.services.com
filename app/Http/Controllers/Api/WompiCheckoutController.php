@@ -35,10 +35,7 @@ class WompiCheckoutController extends Controller
             ->where('payment_status', 'pending_payment')
             ->firstOrFail();
 
-        // Usar el precio fijo del servicio como monto
-        $price = $sr->service ? $sr->service->price : ($sr->budget ?? 0);
-        $sr->update(['budget' => $price]);
-
+        // El budget ya fue calculado correctamente en store() (precio × personas)
         $result = $this->wompi->createCheckoutUrl($sr);
 
         return response()->json([
@@ -154,10 +151,21 @@ class WompiCheckoutController extends Controller
 
     /**
      * Admin: listar todos los cobros al cliente.
+     * Oculta los registros "pending" duplicados de SRs que ya tienen un pago aprobado.
      */
     public function adminPayments(Request $request)
     {
+        // SRs que ya tienen al menos un pago aprobado → sus "pending" históricos se omiten
+        $approvedSrIds = Payment::where('status', 'approved')
+            ->pluck('service_request_id')
+            ->unique()
+            ->toArray();
+
         $query = Payment::with(['serviceRequest.service', 'client'])
+            ->where(function ($q) use ($approvedSrIds) {
+                $q->where('status', '!=', 'pending')
+                  ->orWhereNotIn('service_request_id', $approvedSrIds);
+            })
             ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
@@ -263,9 +271,14 @@ class WompiCheckoutController extends Controller
      */
     public function paymentStats()
     {
-        $totalCobrado   = Payment::where('status', 'approved')->sum(DB::raw('amount_in_cents / 100'));
-        $totalPendiente = Payment::where('status', 'pending')->sum(DB::raw('amount_in_cents / 100'));
-        $totalFallido   = Payment::where('status', 'failed')->count();
+        $approvedSrIds = Payment::where('status', 'approved')
+            ->pluck('service_request_id')->unique()->toArray();
+
+        $totalCobrado    = Payment::where('status', 'approved')->sum(DB::raw('amount_in_cents / 100'));
+        $totalPendiente  = Payment::where('status', 'pending')
+            ->whereNotIn('service_request_id', $approvedSrIds)
+            ->sum(DB::raw('amount_in_cents / 100'));
+        $totalFallido    = Payment::where('status', 'failed')->count();
         $cobrosAprobados = Payment::where('status', 'approved')->count();
 
         $totalDispersado = \App\Models\Payout::where('status', 'approved')->sum('amount');
