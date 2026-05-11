@@ -75,6 +75,59 @@ class DocumentController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
+    public function generateForClient(Request $request, $requestId, $doc = 1)
+    {
+        $serviceRequest = ServiceRequest::with('client', 'service', 'city')
+            ->where('id', $requestId)
+            ->where('client_id', $request->user()->id)
+            ->where('status', 'completed')
+            ->firstOrFail();
+
+        $templatePath = storage_path("app/templates/Capacitacionbar1686-{$doc}.docx");
+        $filename     = "Capacitacionbar1686-{$doc}.docx";
+        $tmpPath      = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
+
+        if (file_exists($templatePath)) {
+            $template = new TemplateProcessor($templatePath);
+
+            $names = $serviceRequest->people_names ?? [];
+            $ids   = $serviceRequest->people_identifications ?? [];
+
+            $template->setValue('empresa',       $serviceRequest->company_name    ?? '');
+            $template->setValue('direccion',     $serviceRequest->company_address ?? '');
+            $template->setValue('propietario',   $serviceRequest->company_owners  ?? '');
+            $template->setValue('nit',           $serviceRequest->company_nit     ?? '');
+            $template->setValue('celular',       $serviceRequest->company_phone   ?? '');
+            $template->setValue('ciudad',        $serviceRequest->city ? $serviceRequest->city->name : '');
+            $template->setValue('fecha',         $serviceRequest->service_date    ?? '');
+            $template->setValue('hora',          $serviceRequest->service_time    ?? '');
+            $template->setValue('servicio',      $serviceRequest->service ? $serviceRequest->service->name : '');
+            $template->setValue('num_personas',  $serviceRequest->people_count    ?? '');
+            $template->setValue('lugar',         $serviceRequest->company_address ?? ($serviceRequest->address ?? ''));
+
+            if (!empty($names)) {
+                try {
+                    $template->cloneRow('participante_nombre', count($names));
+                    foreach ($names as $i => $name) {
+                        $n = $i + 1;
+                        $template->setValue("participante_nombre#{$n}", $name ?: '—');
+                        $template->setValue("participante_cedula#{$n}",  $ids[$i] ?? '—');
+                        $template->setValue("participante_num#{$n}",     (string)$n);
+                    }
+                } catch (\Exception $e) { }
+            }
+
+            $template->saveAs($tmpPath);
+        } else {
+            $tmpPath = $this->generateFromScratch($serviceRequest, $doc);
+            $tmpPath = $tmpPath ?: sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
+        }
+
+        return response()->download($tmpPath, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ])->deleteFileAfterSend(true);
+    }
+
     private function generateFromScratch($serviceRequest, $doc): string
     {
         $phpWord = new PhpWord();
