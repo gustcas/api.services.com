@@ -50,6 +50,14 @@ class ClientRequestController extends Controller
             ->where('status', 'payment_pending')
             ->firstOrFail();
 
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'cancel',
+            'service_request',
+            $sr->id,
+            "Cliente {$request->user()->name} canceló solicitud #{$sr->id}"
+        );
+
         $sr->delete();
 
         return response()->json(['success' => true, 'message' => 'Solicitud cancelada.']);

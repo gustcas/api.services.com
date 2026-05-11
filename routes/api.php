@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\LiveServicesController;
 use App\Http\Controllers\Api\WompiCheckoutController;
 use App\Http\Controllers\Api\WompiPayoutsController;
 use App\Http\Controllers\Api\ProfessionalPaymentInfoController;
+use App\Http\Controllers\Api\RatingController;
 
 // ── Wompi webhooks (públicos, sin CSRF ni autenticación) ───
 Route::post('wompi/webhook',         [WompiCheckoutController::class,  'webhook']);
@@ -134,6 +135,8 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             ->group(function () {
 
                 // Usuarios
+                Route::get('users/export',                     [AdminUserController::class, 'export']);
+                Route::get('users/specialties',                [AdminUserController::class, 'specialties']);
                 Route::get('users',                            [AdminUserController::class, 'index']);
                 Route::get('users/{user}',                     [AdminUserController::class, 'show']);
                 Route::put('users/{user}',                     [AdminUserController::class, 'update']);
@@ -234,6 +237,10 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // Generar documentos Word de capacitación
             Route::get('/requests/{id}/document/{doc}', [DocumentController::class, 'generate']);
 
+            // Calificaciones — profesional califica al cliente
+            Route::post('/requests/{id}/rate-client', [RatingController::class, 'rateByProfessional']);
+            Route::get('/requests/{id}/my-rating', [RatingController::class, 'myRating']);
+
         });
 
     // Chat — accesible por cliente y profesional
@@ -251,6 +258,9 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // Cliente — ver sus solicitudes
             Route::get('/requests', [ClientRequestController::class, 'index']);
 
+            // Cliente — ver evidencias de una solicitud
+            Route::get('/requests/{id}/evidences', [WorkEvidenceController::class, 'clientIndex']);
+
             // Cliente — cancelar solicitud con pago pendiente
             Route::delete('/requests/{id}', [ClientRequestController::class, 'cancel']);
 
@@ -262,5 +272,12 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::post('/payment/confirm', [WompiCheckoutController::class, 'confirmPayment']);
             Route::get('/payment/status',   [WompiCheckoutController::class, 'checkPayment']);
             Route::get('/payment/acceptance-token', [WompiCheckoutController::class, 'acceptanceToken']);
+
+            // Calificaciones — cliente califica al profesional
+            Route::post('/requests/{id}/rate', [RatingController::class, 'rateByClient']);
+            Route::get('/requests/{id}/my-rating', [RatingController::class, 'myRating']);
+
+            // Acta de capacitación — descarga para el cliente
+            Route::get('/requests/{id}/document/{doc}', [DocumentController::class, 'generateForClient']);
         });
 });

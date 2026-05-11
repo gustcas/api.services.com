@@ -28,6 +28,26 @@ class WorkEvidenceController extends Controller
         }));
     }
 
+    // Evidencias visibles para el cliente (solo lectura, valida que le pertenezca)
+    public function clientIndex(Request $request, $requestId)
+    {
+        $serviceRequest = ServiceRequest::where('id', $requestId)
+            ->where('client_id', $request->user()->id)
+            ->firstOrFail();
+
+        $evidences = WorkEvidence::where('service_request_id', $serviceRequest->id)->get();
+
+        return response()->json($evidences->map(function ($e) {
+            return [
+                'id'         => $e->id,
+                'file_url'   => url(Storage::url($e->file_path)),
+                'file_type'  => $e->file_type,
+                'note'       => $e->note,
+                'created_at' => $e->created_at->format('d/m/Y H:i'),
+            ];
+        }));
+    }
+
     // Subir evidencia
     public function store(Request $request, $requestId)
     {
@@ -59,6 +79,14 @@ class WorkEvidenceController extends Controller
             'note'               => $request->note,
         ]);
 
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'upload_evidence',
+            'service_request',
+            $serviceRequest->id,
+            "Profesional {$request->user()->name} subió evidencia en solicitud #{$serviceRequest->id}"
+        );
+
         return response()->json([
             'message'  => 'Evidencia subida correctamente',
             'file_url' => url(Storage::url($evidence->file_path)),
@@ -89,6 +117,14 @@ class WorkEvidenceController extends Controller
                 Log::error("Auto-payout error SR#{$serviceRequest->id}: " . $e->getMessage());
             }
         }
+
+        \App\Models\AdminLog::record(
+            $request->user(),
+            'complete',
+            'service_request',
+            $serviceRequest->id,
+            "Profesional {$request->user()->name} completó solicitud #{$serviceRequest->id}"
+        );
 
         return response()->json(['message' => 'Trabajo marcado como completado']);
     }
