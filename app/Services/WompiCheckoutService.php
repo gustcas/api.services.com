@@ -28,6 +28,7 @@ class WompiCheckoutService
 
     /**
      * Crea un Payment pendiente y devuelve la URL de redirección a Wompi.
+     * Elimina intentos pendientes anteriores para evitar duplicados en la tabla.
      */
     public function createCheckoutUrl(ServiceRequest $sr): array
     {
@@ -38,7 +39,13 @@ class WompiCheckoutService
         // Calcular firma de integridad: SHA256(reference + amountInCents + currency + integrityKey)
         $integrity = hash('sha256', $reference . $amountInCents . 'COP' . $this->integrityKey);
 
-        // Guardar pago pendiente en base de datos
+        // Eliminar intentos pendientes previos para este SR (widget abierto y cerrado sin pagar).
+        // Los pagos aprobados o fallidos se conservan como historial.
+        Payment::where('service_request_id', $sr->id)
+            ->where('status', 'pending')
+            ->delete();
+
+        // Crear nuevo intento de pago
         Payment::create([
             'service_request_id' => $sr->id,
             'client_id'          => $sr->client_id,

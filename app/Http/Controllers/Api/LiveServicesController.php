@@ -316,65 +316,90 @@ class LiveServicesController extends Controller
     // ── Profesionales disponibles para reasignar ───────────────
     public function availableProfessionals($requestId)
     {
-        $sr        = ServiceRequest::findOrFail($requestId);
-        $threshold = Carbon::now('UTC')->subSeconds(60)->toDateTimeString();
+        $sr = ServiceRequest::findOrFail($requestId);
 
-        $onlineUserIds = \DB::table('users')
-            ->where('role', 'professional')
-            ->where('is_active', true)
-            ->where('last_seen_at', '>=', $threshold)
-            ->pluck('id');
-
-        $busyProfIds = ServiceRequest::where('status', 'accepted')
-            ->whereNotNull('professional_id')
-            ->pluck('professional_id');
-
+        // Profesionales verificados con el servicio habilitado (sin restricción de online)
         $professionals = \App\Models\Professional::with('user')
-            ->whereIn('user_id', $onlineUserIds)
             ->where('is_verified', true)
-            ->whereNotIn('id', $busyProfIds)
+            ->where('status', 'approved')
             ->whereHas('services', function ($q) use ($sr) {
                 $q->where('services.id', $sr->service_id);
             })
             ->get()
-            ->map(fn($p) => [
-                'id'   => $p->id,
-                'name' => $p->user ? $p->user->name : '—',
-            ]);
+            ->map(function ($p) {
+                $threshold = Carbon::now('UTC')->subSeconds(60)->toDateTimeString();
+                $isOnline  = $p->user && $p->user->last_seen_at && $p->user->last_seen_at >= $threshold;
+                return [
+                    'id'        => $p->id,
+                    'name'      => $p->user ? $p->user->name : '—',
+                    'is_online' => $isOnline,
+                    'phone'     => $p->phone ?? null,
+                ];
+            });
 
         return response()->json(['professionals' => $professionals]);
     }
 
-    // ── Reasignar solicitud a profesional ──────────────────────
+    // ── Reasignar solicitud: profesional, fecha y hora ─────────
     public function reassign(\Illuminate\Http\Request $request, $requestId)
     {
-        $request->validate(['professional_id' => 'required|exists:professionals,id']);
+        $request->validate([
+            'professional_id' => 'nullable|exists:professionals,id',
+            'service_date'    => 'nullable|date',
+            'service_time'    => 'nullable|string',
+        ]);
 
+        // Permitir reasignar en estado pending O accepted
         $sr = ServiceRequest::where('id', $requestId)
-            ->where('status', 'pending')
+            ->whereIn('status', ['pending', 'accepted'])
             ->firstOrFail();
 
-        $professional = \App\Models\Professional::with('user')->findOrFail($request->professional_id);
+        $changes  = [];
+        $logParts = [];
 
-        $serviceIds = $professional->services()->pluck('services.id')->toArray();
-        if (!in_array($sr->service_id, $serviceIds)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El profesional no tiene habilitado este servicio.',
-            ], 422);
+        // Reasignar profesional
+        if ($request->filled('professional_id')) {
+            $professional = \App\Models\Professional::with('user')
+                ->where('is_verified', true)
+                ->findOrFail($request->professional_id);
+
+            $serviceIds = $professional->services()->pluck('services.id')->toArray();
+            if (!empty($serviceIds) && !in_array($sr->service_id, $serviceIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El profesional no tiene habilitado este servicio.',
+                ], 422);
+            }
+
+            $changes['professional_id'] = $professional->id;
+            $changes['status']          = 'accepted';
+            $logParts[] = "profesional → {$professional->user->name}";
         }
 
-        $sr->update([
-            'professional_id' => $professional->id,
-            'status'          => 'accepted',
-        ]);
+        // Reasignar fecha
+        if ($request->filled('service_date')) {
+            $changes['service_date'] = $request->service_date;
+            $logParts[] = "fecha → {$request->service_date}";
+        }
+
+        // Reasignar hora
+        if ($request->filled('service_time')) {
+            $changes['service_time'] = $request->service_time;
+            $logParts[] = "hora → {$request->service_time}";
+        }
+
+        if (empty($changes)) {
+            return response()->json(['success' => false, 'message' => 'No se indicaron cambios.'], 422);
+        }
+
+        $sr->update($changes);
 
         \App\Models\AdminLog::record(
             $request->user(), 'reassign', 'service-request', $sr->id,
-            "Reasignó la solicitud #{$requestId} al profesional {$professional->user->name}"
+            "Reasignó solicitud #{$requestId}: " . implode(', ', $logParts)
         );
 
-        return response()->json(['success' => true, 'message' => 'Solicitud reasignada correctamente.']);
+        return response()->json(['success' => true, 'message' => 'Solicitud actualizada correctamente.']);
     }
 
     // ── Helper: tiempo transcurrido ────────────────────────────
