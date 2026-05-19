@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\ClientRequestController;
 use App\Http\Controllers\Api\AdminLogController;
 use App\Http\Controllers\Api\SubAdminController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\AdminSupportController;
+use App\Http\Controllers\Api\AdminSettingController;
+use App\Http\Controllers\Api\ClientSupportController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\AccountController;
@@ -22,6 +25,7 @@ use App\Http\Controllers\Api\WompiCheckoutController;
 use App\Http\Controllers\Api\WompiPayoutsController;
 use App\Http\Controllers\Api\ProfessionalPaymentInfoController;
 use App\Http\Controllers\Api\RatingController;
+use App\Http\Controllers\Api\ClientProfileController;
 
 // ── Wompi webhooks (públicos, sin CSRF ni autenticación) ───
 Route::post('wompi/webhook',         [WompiCheckoutController::class,  'webhook']);
@@ -31,7 +35,9 @@ Route::post('wompi/payouts-webhook', [WompiPayoutsController::class,   'webhook'
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login',    [AuthController::class, 'login']);
 Route::get('/categories', function () {
-    return \App\Models\Category::where('is_active', true)->get();
+    return \App\Models\Category::where('is_active', true)
+        ->withCount('services')
+        ->get();
 });
 
 Route::get('/services', function () {
@@ -158,6 +164,16 @@ Route::middleware(['auth:api', 'active'])->group(function () {
                 // Reportes
                 Route::get('reports', [AdminReportController::class, 'index']);
 
+                // Configuración
+                Route::get('settings',  [AdminSettingController::class, 'index']);
+                Route::put('settings',  [AdminSettingController::class, 'update']);
+
+                // Soporte
+                Route::get('support',                    [AdminSupportController::class, 'index']);
+                Route::get('support/{id}',               [AdminSupportController::class, 'show']);
+                Route::patch('support/{id}/reply',       [AdminSupportController::class, 'reply']);
+                Route::patch('support/{id}/status',      [AdminSupportController::class, 'updateStatus']);
+
                 // Auditoría
                 Route::get('logs', [AdminLogController::class, 'index']);
 
@@ -251,6 +267,31 @@ Route::middleware(['auth:api', 'active'])->group(function () {
     Route::middleware('client')
         ->prefix('client')
         ->group(function() {
+            // Perfil del cliente
+            Route::get('/profile',  [ClientProfileController::class, 'show']);
+            Route::put('/profile',  [ClientProfileController::class, 'update']);
+            Route::put('/password', [ClientProfileController::class, 'changePassword']);
+
+            // Notificaciones
+            Route::get('/notifications',          [ClientProfileController::class, 'notifications']);
+            Route::post('/notifications/read-all',[ClientProfileController::class, 'notificationsReadAll']);
+            Route::get('/unread-counts',           [ClientProfileController::class, 'unreadCounts']);
+
+            // Dashboard
+            Route::get('/featured-professionals', [ClientProfileController::class, 'featuredProfessionals']);
+            Route::get('/balance',                [ClientProfileController::class, 'balance']);
+
+            // Tarjeta guardada (stub)
+            Route::get('/saved-card', [ClientProfileController::class, 'savedCard']);
+
+            // Favoritos
+            Route::get('/favorites', [ClientProfileController::class, 'favorites']);
+
+            // OTP para pago
+            Route::post('/payment/send-otp',        [ClientProfileController::class, 'sendOtp']);
+            Route::post('/payment/verify-otp',       [ClientProfileController::class, 'verifyOtp']);
+            Route::post('/payment/charge-saved-card',[ClientProfileController::class, 'chargeSavedCard']);
+
             Route::post('/service-request', [ServiceRequestController::class, 'store']);
             Route::get('/service-request/{id}/status', [ServiceRequestController::class, 'checkStatus']);
             Route::get('/professionals-available', [ProfessionalController::class, 'availableForClient']);
@@ -272,6 +313,10 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::post('/payment/confirm', [WompiCheckoutController::class, 'confirmPayment']);
             Route::get('/payment/status',   [WompiCheckoutController::class, 'checkPayment']);
             Route::get('/payment/acceptance-token', [WompiCheckoutController::class, 'acceptanceToken']);
+
+            // Soporte — cliente crea y consulta sus tickets
+            Route::get('/support',  [ClientSupportController::class, 'index']);
+            Route::post('/support', [ClientSupportController::class, 'store']);
 
             // Calificaciones — cliente califica al profesional
             Route::post('/requests/{id}/rate', [RatingController::class, 'rateByClient']);

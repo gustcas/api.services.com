@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
+use App\Models\Notification;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -102,6 +103,18 @@ class ChatController extends Controller
             'sender_id'          => $user->id,
             'message'            => $request->message,
         ]);
+
+        // Notificar al receptor del mensaje
+        $receiverId = $this->getOtherUserId($serviceRequest, $user);
+        if ($receiverId) {
+            Notification::send(
+                $receiverId,
+                'new_message',
+                'Nuevo mensaje',
+                $user->name . ' te envió un mensaje.',
+                (int) $requestId
+            );
+        }
 
         return response()->json([
             'id'          => $msg->id,
