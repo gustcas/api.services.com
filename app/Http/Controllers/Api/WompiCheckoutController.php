@@ -32,7 +32,7 @@ class WompiCheckoutController extends Controller
         $sr = ServiceRequest::with('service')
             ->where('id', $request->service_request_id)
             ->where('client_id', $request->user()->id)
-            ->where('payment_status', 'pending_payment')
+            ->whereIn('payment_status', ['pending_payment', 'payment_failed'])
             ->firstOrFail();
 
         // El budget ya fue calculado correctamente en store() (precio × personas)

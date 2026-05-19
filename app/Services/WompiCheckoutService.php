@@ -34,7 +34,7 @@ class WompiCheckoutService
     {
         $amountInCents = (int) round($sr->budget * 100);
         $reference     = 'ESERV-' . $sr->id . '-' . time();
-        $redirectUrl   = config('wompi.frontend_url') . '/cliente?payment=done';
+        $redirectUrl   = rtrim(config('wompi.frontend_url'), '/') . '/cliente?payment=done';
 
         // Calcular firma de integridad: SHA256(reference + amountInCents + currency + integrityKey)
         $integrity = hash('sha256', $reference . $amountInCents . 'COP' . $this->integrityKey);

@@ -21,6 +21,10 @@ class User extends Authenticatable
         'is_active',
         'is_super_admin',
         'permissions',
+        'phone',
+        'city',
+        'otp_code',
+        'otp_expires_at',
     ];
 
     protected $hidden = [
@@ -31,6 +35,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_seen_at'      => 'datetime',
+        'otp_expires_at'    => 'datetime',
         'is_active'         => 'boolean',
         'is_super_admin'    => 'boolean',
         'permissions'       => 'array',
