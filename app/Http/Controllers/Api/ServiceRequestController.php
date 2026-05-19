@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Notification;
 use App\Models\ServiceRequest;
 use App\Mail\ServiceAcceptedMail;
 use App\Mail\ServiceCompletedMail;
@@ -272,6 +273,18 @@ class ServiceRequestController extends Controller
             'service_request',
             $serviceRequest->id,
             "Profesional {$request->user()->name} completó solicitud #{$serviceRequest->id} ({$serviceName}) con código"
+        );
+
+        // Notificar al cliente
+        $serviceRequest->load(['client', 'service', 'professional.user']);
+        $serviceName = optional($serviceRequest->service)->name ?? 'el servicio';
+        $proName     = optional(optional($serviceRequest->professional)->user)->name ?? 'El profesional';
+        Notification::send(
+            $serviceRequest->client_id,
+            'service_completed',
+            'Servicio completado',
+            "{$proName} completó {$serviceName}. ¡Califica tu experiencia!",
+            $serviceRequest->id
         );
 
         // Enviar emails al cliente y al profesional
