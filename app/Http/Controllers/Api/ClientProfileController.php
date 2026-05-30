@@ -135,8 +135,8 @@ class ClientProfileController extends Controller
                     ->count();
                 return [
                     'id'        => $pro->id,
-                    'name'      => $pro->user?->name ?? 'Profesional',
-                    'specialty' => $pro->services->first()?->name ?? '',
+                    'name'      => ($pro->user ? $pro->user->name : null) ?? 'Profesional',
+                    'specialty' => ($pro->services->first() ? $pro->services->first()->name : null) ?? '',
                     'rating'    => $avgRating ? round((float) $avgRating, 1) : 0.0,
                     'jobs'      => $completedJobs,
                     'photo'     => $pro->photo ?? null,
