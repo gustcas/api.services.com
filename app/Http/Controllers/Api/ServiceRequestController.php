@@ -29,12 +29,15 @@ class ServiceRequestController extends Controller
             'people_names'            => 'nullable|array',
             'people_names.*'          => 'nullable|string|max:255',
             'people_identifications'  => 'nullable|array',
-            'people_identifications.*'=> 'nullable|string|max:50',
+            'people_identifications.*' => 'nullable|string|max:50',
             'company_name'            => 'nullable|string|max:255',
             'company_address'         => 'nullable|string|max:255',
             'company_owners'          => 'nullable|string|max:255',
             'company_nit'             => 'nullable|string|max:50',
             'company_phone'           => 'nullable|string|max:20',
+            'company_locality'        => 'nullable|string|max:255',
+            'cycle'                   => 'nullable|integer|min:1|max:3',
+            'cert_subcategory'        => 'nullable|string|max:50',
         ]);
 
         // Calcular precio: precio base × cantidad de personas
@@ -55,14 +58,17 @@ class ServiceRequestController extends Controller
             'service_time'           => $request->service_time,
             'people_count'           => $request->people_count,
             'people_names'           => $request->people_names,
-            'people_identifications' => $request->people_identifications,
+            'people_identifications' => $request->people_identifications ?? $request->people_ids,
             'company_name'           => $request->company_name,
             'company_address'        => $request->company_address,
             'company_owners'         => $request->company_owners,
             'company_nit'            => $request->company_nit,
             'company_phone'          => $request->company_phone,
+            'company_locality'       => $request->company_locality,
             'budget'                 => $budget,
             'city_id'                => $request->city_id,
+            'cycle'                  => $request->cycle,
+            'cert_subcategory'       => $request->cert_subcategory,
             'status'                 => 'payment_pending', // inactiva hasta confirmar pago
             'payment_status'         => 'pending_payment',
         ]);
@@ -86,7 +92,7 @@ class ServiceRequestController extends Controller
     }
 
 
-     public function checkStatus(Request $request, $id)
+    public function checkStatus(Request $request, $id)
     {
         $serviceRequest = ServiceRequest::with('professional.user')
             ->where('id', $id)
@@ -127,7 +133,7 @@ class ServiceRequestController extends Controller
                 // Si el profesional tiene ciudad, mostrar SRs de su ciudad o virtuales
                 $q->where(function ($inner) use ($professional) {
                     $inner->where('city_id', $professional->city_id)
-                          ->orWhereNull('city_id');
+                        ->orWhereNull('city_id');
                 });
             })
             // Si el profesional no tiene ciudad asignada, no filtra por ciudad (ve todos)
@@ -137,7 +143,7 @@ class ServiceRequestController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json($requests->map(function($r) {
+        return response()->json($requests->map(function ($r) {
             return [
                 'id'           => $r->id,
                 'description'  => $r->description,
@@ -304,5 +310,4 @@ class ServiceRequestController extends Controller
             'message' => 'Trabajo completado y aprobado por el cliente'
         ]);
     }
-
 }

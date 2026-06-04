@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\WompiPayoutsController;
 use App\Http\Controllers\Api\ProfessionalPaymentInfoController;
 use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\ClientProfileController;
+use App\Http\Controllers\Api\CertificationDocumentController;
 
 // ── Wompi webhooks (públicos, sin CSRF ni autenticación) ───
 Route::post('wompi/webhook',         [WompiCheckoutController::class,  'webhook']);
@@ -137,99 +138,98 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
     // ── Rutas solo admin ───────────────────────────────────
     Route::middleware('admin')
-            ->prefix('admin')
-            ->group(function () {
+        ->prefix('admin')
+        ->group(function () {
 
-                // Usuarios
-                Route::get('users/export',                     [AdminUserController::class, 'export']);
-                Route::get('users/specialties',                [AdminUserController::class, 'specialties']);
-                Route::get('users',                            [AdminUserController::class, 'index']);
-                Route::get('users/{user}',                     [AdminUserController::class, 'show']);
-                Route::put('users/{user}',                     [AdminUserController::class, 'update']);
-                Route::patch('users/{user}/toggle-status',     [AdminUserController::class, 'toggleStatus']);
-                Route::post('users/bulk',                      [AdminUserController::class, 'bulk']);
+            // Usuarios
+            Route::get('users/export',                     [AdminUserController::class, 'export']);
+            Route::get('users/specialties',                [AdminUserController::class, 'specialties']);
+            Route::get('users',                            [AdminUserController::class, 'index']);
+            Route::get('users/{user}',                     [AdminUserController::class, 'show']);
+            Route::put('users/{user}',                     [AdminUserController::class, 'update']);
+            Route::patch('users/{user}/toggle-status',     [AdminUserController::class, 'toggleStatus']);
+            Route::post('users/bulk',                      [AdminUserController::class, 'bulk']);
 
-                // Stats del dashboard
-                Route::get('stats',                            [AdminUserController::class, 'stats']);
+            // Stats del dashboard
+            Route::get('stats',                            [AdminUserController::class, 'stats']);
 
-                // Verificar profesional
-                Route::patch('users/{user}/verify-professional', [AdminUserController::class, 'verifyProfessional']);
+            // Verificar profesional
+            Route::patch('users/{user}/verify-professional', [AdminUserController::class, 'verifyProfessional']);
 
-                // Sub-admins
-                Route::get('sub-admins',          [SubAdminController::class, 'index']);
-                Route::post('sub-admins',         [SubAdminController::class, 'store']);
-                Route::put('sub-admins/{user}',   [SubAdminController::class, 'update']);
-                Route::delete('sub-admins/{user}',[SubAdminController::class, 'destroy']);
+            // Sub-admins
+            Route::get('sub-admins',          [SubAdminController::class, 'index']);
+            Route::post('sub-admins',         [SubAdminController::class, 'store']);
+            Route::put('sub-admins/{user}',   [SubAdminController::class, 'update']);
+            Route::delete('sub-admins/{user}', [SubAdminController::class, 'destroy']);
 
-                // Reportes
-                Route::get('reports', [AdminReportController::class, 'index']);
+            // Reportes
+            Route::get('reports', [AdminReportController::class, 'index']);
 
-                // Configuración
-                Route::get('settings',  [AdminSettingController::class, 'index']);
-                Route::put('settings',  [AdminSettingController::class, 'update']);
+            // Configuración
+            Route::get('settings',  [AdminSettingController::class, 'index']);
+            Route::put('settings',  [AdminSettingController::class, 'update']);
 
-                // Soporte
-                Route::get('support',                    [AdminSupportController::class, 'index']);
-                Route::get('support/{id}',               [AdminSupportController::class, 'show']);
-                Route::patch('support/{id}/reply',       [AdminSupportController::class, 'reply']);
-                Route::patch('support/{id}/status',      [AdminSupportController::class, 'updateStatus']);
+            // Soporte
+            Route::get('support',                    [AdminSupportController::class, 'index']);
+            Route::get('support/{id}',               [AdminSupportController::class, 'show']);
+            Route::patch('support/{id}/reply',       [AdminSupportController::class, 'reply']);
+            Route::patch('support/{id}/status',      [AdminSupportController::class, 'updateStatus']);
 
-                // Auditoría
-                Route::get('logs', [AdminLogController::class, 'index']);
+            // Auditoría
+            Route::get('logs', [AdminLogController::class, 'index']);
 
-                // Pagos al cliente (checkout)
-                Route::get('payments',          [WompiCheckoutController::class, 'adminPayments']);
-                Route::get('payments/stats',    [WompiCheckoutController::class, 'paymentStats']);
-                Route::get('payments/pending-payouts', [WompiCheckoutController::class, 'pendingPayouts']);
-                // Solo DEV: simular pago aprobado en una solicitud
-                Route::post('payments/{serviceRequestId}/simulate', [WompiCheckoutController::class, 'simulatePayment']);
+            // Pagos al cliente (checkout)
+            Route::get('payments',          [WompiCheckoutController::class, 'adminPayments']);
+            Route::get('payments/stats',    [WompiCheckoutController::class, 'paymentStats']);
+            Route::get('payments/pending-payouts', [WompiCheckoutController::class, 'pendingPayouts']);
+            // Solo DEV: simular pago aprobado en una solicitud
+            Route::post('payments/{serviceRequestId}/simulate', [WompiCheckoutController::class, 'simulatePayment']);
 
-                // Dispersiones al profesional (payouts)
-                Route::prefix('payouts')->group(function () {
-                    Route::get('/',                   [WompiPayoutsController::class, 'index']);
-                    Route::get('/{id}',               [WompiPayoutsController::class, 'show']);
-                    Route::post('/{serviceRequestId}/disburse', [WompiPayoutsController::class, 'disburse']);
-                });
-
-                // Servicios en Vivo
-                Route::prefix('live-services')->group(function () {
-                    Route::get('summary',                    [LiveServicesController::class, 'summary']);
-                    Route::get('requests',                   [LiveServicesController::class, 'requests']);
-                    Route::get('connected-users',            [LiveServicesController::class, 'connectedUsers']);
-                    Route::get('chats',                      [LiveServicesController::class, 'chats']);
-                    Route::get('incidents',                  [LiveServicesController::class, 'incidents']);
-                    Route::get('chat/{requestId}/messages',       [LiveServicesController::class, 'chatMessages']);
-                    Route::get('requests/{requestId}/available-professionals', [LiveServicesController::class, 'availableProfessionals']);
-                    Route::post('requests/{requestId}/reassign', [LiveServicesController::class, 'reassign']);
-                    Route::get('requests/{requestId}/evidences', [WorkEvidenceController::class, 'index']);
-                });
-
-                // Categoria del dashboard
-                Route::get('/categories',[CategoryController::class,'index']);
-
-                Route::post('/categories',[CategoryController::class,'store']);
-
-                Route::put('/categories/{category}',[CategoryController::class,'update']);
-
-                Route::delete('/categories/{category}',[CategoryController::class,'destroy']);
-
-                // Servicios del dashboard
-                Route::post('/services',[ServiceController::class,'store']);
-
-                Route::put('/services/{service}',[ServiceController::class,'update']);
-
-                Route::delete('/services/{service}',[ServiceController::class,'destroy']);
-
-                
+            // Dispersiones al profesional (payouts)
+            Route::prefix('payouts')->group(function () {
+                Route::get('/',                   [WompiPayoutsController::class, 'index']);
+                Route::get('/{id}',               [WompiPayoutsController::class, 'show']);
+                Route::post('/{serviceRequestId}/disburse', [WompiPayoutsController::class, 'disburse']);
             });
+
+            // Servicios en Vivo
+            Route::prefix('live-services')->group(function () {
+                Route::get('summary',                    [LiveServicesController::class, 'summary']);
+                Route::get('requests',                   [LiveServicesController::class, 'requests']);
+                Route::get('connected-users',            [LiveServicesController::class, 'connectedUsers']);
+                Route::get('chats',                      [LiveServicesController::class, 'chats']);
+                Route::get('incidents',                  [LiveServicesController::class, 'incidents']);
+                Route::get('chat/{requestId}/messages',       [LiveServicesController::class, 'chatMessages']);
+                Route::get('requests/{requestId}/available-professionals', [LiveServicesController::class, 'availableProfessionals']);
+                Route::post('requests/{requestId}/reassign', [LiveServicesController::class, 'reassign']);
+                Route::get('requests/{requestId}/evidences', [WorkEvidenceController::class, 'index']);
+            });
+
+            // Categoria del dashboard
+            Route::get('/categories', [CategoryController::class, 'index']);
+
+            Route::post('/categories', [CategoryController::class, 'store']);
+
+            Route::put('/categories/{category}', [CategoryController::class, 'update']);
+
+            Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+
+            // Servicios del dashboard
+            Route::post('/services', [ServiceController::class, 'store']);
+
+            Route::put('/services/{service}', [ServiceController::class, 'update']);
+
+            Route::delete('/services/{service}', [ServiceController::class, 'destroy']);
+        });
 
     Route::middleware('professional')
         ->prefix('professional')
         ->group(function () {
 
-            Route::get('/dashboard', [ProfessionalController::class, 'dashboard']);
-            Route::get('/earnings',  [ProfessionalController::class, 'earnings']);
-            Route::post('/profile', [ProfessionalController::class, 'storeOrUpdate']);
+        Route::get('/dashboard', [ProfessionalController::class, 'dashboard']);
+        Route::get('/earnings',  [ProfessionalController::class, 'earnings']);
+        Route::get('/services',  [ProfessionalController::class, 'myServices']);
+        Route::post('/profile', [ProfessionalController::class, 'storeOrUpdate']);
 
             // Datos bancarios para dispersión de pagos
             Route::get('/payment-info',  [ProfessionalPaymentInfoController::class, 'show']);
@@ -256,7 +256,6 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // Calificaciones — profesional califica al cliente
             Route::post('/requests/{id}/rate-client', [RatingController::class, 'rateByProfessional']);
             Route::get('/requests/{id}/my-rating', [RatingController::class, 'myRating']);
-
         });
 
     // Chat — accesible por cliente y profesional
@@ -266,7 +265,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
     Route::middleware('client')
         ->prefix('client')
-        ->group(function() {
+        ->group(function () {
             // Perfil del cliente
             Route::get('/profile',  [ClientProfileController::class, 'show']);
             Route::put('/profile',  [ClientProfileController::class, 'update']);
@@ -274,7 +273,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
             // Notificaciones
             Route::get('/notifications',          [ClientProfileController::class, 'notifications']);
-            Route::post('/notifications/read-all',[ClientProfileController::class, 'notificationsReadAll']);
+            Route::post('/notifications/read-all', [ClientProfileController::class, 'notificationsReadAll']);
             Route::get('/unread-counts',           [ClientProfileController::class, 'unreadCounts']);
 
             // Dashboard
@@ -290,7 +289,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // OTP para pago
             Route::post('/payment/send-otp',        [ClientProfileController::class, 'sendOtp']);
             Route::post('/payment/verify-otp',       [ClientProfileController::class, 'verifyOtp']);
-            Route::post('/payment/charge-saved-card',[ClientProfileController::class, 'chargeSavedCard']);
+            Route::post('/payment/charge-saved-card', [ClientProfileController::class, 'chargeSavedCard']);
 
             Route::post('/service-request', [ServiceRequestController::class, 'store']);
             Route::get('/service-request/{id}/status', [ServiceRequestController::class, 'checkStatus']);
@@ -324,5 +323,16 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
             // Acta de capacitación — descarga para el cliente
             Route::get('/requests/{id}/document/{doc}', [DocumentController::class, 'generateForClient']);
+
+            // Certificación — descarga acta con plan, evaluación y video
+            Route::get('/requests/{id}/certification-document', [CertificationDocumentController::class, 'downloadForClient']);
+
+            // Certificación — descarga archivos individuales
+            Route::get('/requests/{id}/certification-document/plan',  [CertificationDocumentController::class, 'downloadPlan']);
+            Route::get('/requests/{id}/certification-document/eval',  [CertificationDocumentController::class, 'downloadEval']);
+            Route::get('/requests/{id}/certification-document/video', [CertificationDocumentController::class, 'downloadVideo']);
+
+            // Plan de Saneamiento — descarga documento personalizado
+            Route::get('/requests/{id}/saneamiento-document', [CertificationDocumentController::class, 'downloadSaneamiento']);
         });
 });
