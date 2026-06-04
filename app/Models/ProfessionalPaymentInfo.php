@@ -28,10 +28,13 @@ class ProfessionalPaymentInfo extends Model
     /** Etiqueta legible del método de pago */
     public function getMethodLabelAttribute(): string
     {
-        return match ($this->payment_method) {
-            'nequi'        => 'Nequi',
-            'daviplata'    => 'Daviplata',
-            default        => "Cuenta {$this->account_type} — {$this->bank_name}",
-        };
+        switch ($this->payment_method) {
+            case 'nequi':
+                return 'Nequi';
+            case 'daviplata':
+                return 'Daviplata';
+            default:
+                return "Cuenta {$this->account_type} — {$this->bank_name}";
+        }
     }
 }

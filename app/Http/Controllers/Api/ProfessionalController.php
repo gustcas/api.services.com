@@ -190,4 +190,27 @@ class ProfessionalController extends Controller
 
         return response()->json($result);
     }
+    // Servicios asignados al profesional
+    public function myServices(Request $request)
+    {
+        $professional = $request->user()->professional;
+
+        if (!$professional) {
+            return response()->json([]);
+        }
+
+        $services = $professional->services()->with('category')->get();
+
+        return response()->json($services->map(function ($s) {
+            return [
+                'id'            => $s->id,
+                'name'          => $s->name,
+                'description'   => $s->description ?? '',
+                'price'         => $s->price,
+                'category_name' => $s->category ? $s->category->name : '—',
+                'active'        => (bool) $s->is_active,
+                'rating'        => null,
+            ];
+        }));
+    }
 }
