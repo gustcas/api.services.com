@@ -33,6 +33,7 @@ class CategoryController extends Controller
             'slug'        => Str::slug($request->name),
             'description' => $request->description,
             'is_active'   => $request->boolean('is_active', true),
+            'asecalidad_account_id'=> $request->asecalidad_account_id ?? null,
         ]);
 
         AdminLog::record(
@@ -62,6 +63,8 @@ class CategoryController extends Controller
             'slug'        => Str::slug($request->name),
             'description' => $request->description,
             'is_active'   => $request->boolean('is_active', $category->is_active),
+            'asecalidad_account_id'=> $request->asecalidad_account_id ?? null,
+
         ]);
 
         AdminLog::record(

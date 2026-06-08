@@ -78,7 +78,8 @@ class LiveServicesController extends Controller
         $query = ServiceRequest::with([
             'client:id,name,email,last_seen_at',
             'professional.user:id,name,email,last_seen_at',
-            'service:id,name',
+            'service:id,name,category_id',
+            'service.category:id,name',
         ]);
 
         if ($request->filled('status')) {
@@ -109,6 +110,7 @@ class LiveServicesController extends Controller
                 return [
                     'id'                => $sr->id,
                     'service_name'      => $sr->service ? $sr->service->name : 'Servicio',
+                    'category_name'     => $sr->service && $sr->service->category ? $sr->service->category->name : '',
                     'client_name'       => $sr->client ? $sr->client->name : '—',
                     'client_email'      => $sr->client ? $sr->client->email : '—',
                     'client_online'     => $clientOnline,

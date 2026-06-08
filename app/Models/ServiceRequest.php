@@ -34,6 +34,11 @@ class ServiceRequest extends Model
         'city_id',
         'professional_id',
         'completion_code',
+        'disbursement_status',
+        'disbursement_scheduled_at',
+        'disbursed_at',
+        'disbursement_error',
+        'disbursement_attempts',
         'completion_code_expires_at',
         'completed_at',
     ];

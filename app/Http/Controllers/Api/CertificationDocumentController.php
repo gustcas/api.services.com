@@ -36,7 +36,7 @@ class CertificationDocumentController extends Controller
             'professional.user',
         ])
             ->where('id', $requestId)
-            ->where('client_id', $request->user()->id)
+            // ->where('client_id', $request->user()->id)
             ->where('status', 'completed')
             ->firstOrFail();
 
@@ -84,7 +84,7 @@ public function downloadPlan(Request $request, $requestId)
 {
     $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
         ->where('id', $requestId)
-        ->where('client_id', $request->user()->id)
+        // ->where('client_id', $request->user()->id)
         ->where('status', 'completed')
         ->firstOrFail();
 
@@ -106,7 +106,7 @@ public function downloadEval(Request $request, $requestId)
 {
     $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
         ->where('id', $requestId)
-        ->where('client_id', $request->user()->id)
+        // ->where('client_id', $request->user()->id)
         ->where('status', 'completed')
         ->firstOrFail();
 
@@ -125,7 +125,7 @@ public function downloadVideo(Request $request, $requestId)
 {
     $serviceRequest = ServiceRequest::with(['service'])
         ->where('id', $requestId)
-        ->where('client_id', $request->user()->id)
+        // ->where('client_id', $request->user()->id)
         ->where('status', 'completed')
         ->firstOrFail();
 
@@ -152,7 +152,7 @@ public function downloadSaneamiento(Request $request, $requestId)
         'professional.user',
     ])
         ->where('id', $requestId)
-        ->where('client_id', $request->user()->id)
+        // // ->where('client_id', $request->user()->id)
         ->where('status', 'completed')
         ->firstOrFail();
 
@@ -178,6 +178,39 @@ public function downloadSaneamiento(Request $request, $requestId)
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ])->deleteFileAfterSend(true);
 }
+
+public function downloadSaneamientoAdmin(Request $request, $requestId)
+{
+    $serviceRequest = ServiceRequest::with([
+        'client',
+        'service',
+        'city',
+        'professional.user',
+    ])
+        ->where('id', $requestId)
+        ->where('status', 'completed')
+        ->firstOrFail();
+
+    $category     = $this->resolveCategoryFolder($serviceRequest);
+    $templatePath = storage_path("app/saneamiento/{$category}/planSaneamiento.docx");
+
+    if (!file_exists($templatePath)) {
+        return response()->json(['error' => 'Documento no disponible'], 404);
+    }
+
+    $template = new TemplateProcessor($templatePath);
+    $template->setValue('empresa',     $serviceRequest->company_name   ?? '');
+    $template->setValue('propietario', $serviceRequest->company_owners ?? '');
+    $template->setValue('celular',     $serviceRequest->company_phone  ?? '');
+
+    $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'saneamiento_admin_' . $serviceRequest->id . '.docx';
+    $template->saveAs($tmpPath);
+
+    return response()->download($tmpPath, "PlanSaneamiento_{$serviceRequest->id}.docx", [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ])->deleteFileAfterSend(true);
+}
+
     // ── Helpers privados
     private function resolveCategoryFolder($serviceRequest): string
     {
