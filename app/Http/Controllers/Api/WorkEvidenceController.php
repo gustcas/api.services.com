@@ -128,4 +128,21 @@ class WorkEvidenceController extends Controller
 
         return response()->json(['message' => 'Trabajo marcado como completado']);
     }
+
+    public function destroy(Request $request, $requestId, $evidenceId)
+{
+    $professional   = $request->user()->professional;
+    $serviceRequest = ServiceRequest::where('id', $requestId)
+        ->where('professional_id', $professional->id)
+        ->firstOrFail();
+
+    $evidence = WorkEvidence::where('id', $evidenceId)
+        ->where('service_request_id', $serviceRequest->id)
+        ->firstOrFail();
+
+    Storage::disk('public')->delete($evidence->file_path);
+    $evidence->delete();
+
+    return response()->json(['message' => 'Evidencia eliminada correctamente']);
+}
 }

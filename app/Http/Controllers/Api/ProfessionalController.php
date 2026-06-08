@@ -8,7 +8,7 @@ use App\Models\Professional;
 
 class ProfessionalController extends Controller
 {
-    public function dashboard(Request $request)
+public function dashboard(Request $request)
     {
         $user         = $request->user();
         $professional = $user->professional;
@@ -18,10 +18,38 @@ class ProfessionalController extends Controller
             $professional->category_ids = $professional->categories()->pluck('categories.id')->toArray();
         }
 
+        $stats = ['reservas_hoy' => 0, 'ingresos_hoy' => 0, 'servicios_activos' => 0, 'promedio_reseñas' => 0];
+
+        if ($professional) {
+            $today = now()->toDateString();
+
+            $stats['reservas_hoy'] = \App\Models\ServiceRequest::where('professional_id', $professional->id)
+                ->whereDate('service_date', $today)
+                ->whereIn('status', ['accepted', 'completed'])
+                ->count();
+
+            $stats['ingresos_hoy'] = \App\Models\ServiceRequest::where('professional_id', $professional->id)
+                ->whereDate('updated_at', $today)
+                ->where('status', 'completed')
+                ->where('payment_status', 'paid')
+                ->with('service')
+                ->get()
+                ->sum(fn($r) => round((float)$r->budget * ((float)optional($r->service)->allies_percentage / 100), 2));
+
+            $stats['servicios_activos'] = \App\Models\ServiceRequest::where('professional_id', $professional->id)
+                ->where('status', 'accepted')
+                ->count();
+
+            $stats['promedio_reseñas'] = \App\Models\Rating::where('ratee_id', $professional->user_id)
+                ->avg('score') ?? 0;
+            $stats['promedio_reseñas'] = round($stats['promedio_reseñas'], 1);
+        }
+
         return response()->json([
             'success'                  => true,
             'needs_profile_completion' => !$professional,
             'professional'             => $professional,
+            'stats'                    => $stats,
         ]);
     }
 
@@ -148,6 +176,7 @@ class ProfessionalController extends Controller
                 'net_amount'   => $netAmount,
                 'status'       => $r->status,
                 'completed_at' => $r->completed_at,
+                'disbursement_status' => $r->disbursement_status ?? 'pending',
             ];
         });
 

@@ -29,6 +29,7 @@ class ClientRequestController extends Controller
                 'people_count'                => $r->people_count,
                 'service_name'                => $r->service ? $r->service->name : null,
                 'category_name'               => $r->service && $r->service->category ? $r->service->category->name : null,
+                'form_type'                   => $r->service ? $r->service->form_type : null,
                 'city_name'                   => $r->city ? $r->city->name : null,
                 'completion_code'             => $r->completion_code,
                 'completion_code_expires_at'  => $r->completion_code_expires_at,

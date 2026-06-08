@@ -24,7 +24,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Dispersión automática cada martes a las 8am hora Colombia
+        $schedule->command('pagos:dispersar')
+            ->weeklyOn(2, '08:00')
+            ->timezone('America/Bogota')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**
