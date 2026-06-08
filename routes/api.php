@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\ProfessionalPaymentInfoController;
 use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\ClientProfileController;
 use App\Http\Controllers\Api\CertificationDocumentController;
+use App\Http\Controllers\Api\PayoutAccountController;
 
 // ── Wompi webhooks (públicos, sin CSRF ni autenticación) ───
 Route::post('wompi/webhook',         [WompiCheckoutController::class,  'webhook']);
@@ -204,6 +205,11 @@ Route::middleware(['auth:api', 'active'])->group(function () {
                 Route::post('requests/{requestId}/reassign', [LiveServicesController::class, 'reassign']);
                 Route::get('requests/{requestId}/evidences', [WorkEvidenceController::class, 'index']);
             });
+        // Admin — descarga documentos sin restricción de cliente ni 72hrs
+        Route::get('requests/{id}/certification-document/plan',  [CertificationDocumentController::class, 'downloadPlan']);
+        Route::get('requests/{id}/certification-document/eval',  [CertificationDocumentController::class, 'downloadEval']);
+        Route::get('requests/{id}/certification-document/video', [CertificationDocumentController::class, 'downloadVideo']);
+        Route::get('requests/{id}/saneamiento-document-admin',   [CertificationDocumentController::class, 'downloadSaneamientoAdmin']);
 
             // Categoria del dashboard
             Route::get('/categories', [CategoryController::class, 'index']);
@@ -220,6 +226,14 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::put('/services/{service}', [ServiceController::class, 'update']);
 
             Route::delete('/services/{service}', [ServiceController::class, 'destroy']);
+
+            // Cuentas bancarias de dispersión
+            Route::get('/payout-accounts',                           [PayoutAccountController::class, 'index']);
+            Route::post('/payout-accounts',                          [PayoutAccountController::class, 'store']);
+            Route::put('/payout-accounts/{payoutAccount}',           [PayoutAccountController::class, 'update']);
+            Route::delete('/payout-accounts/{payoutAccount}',        [PayoutAccountController::class, 'destroy']);
+            Route::get('/payout-accounts/category/{categoryId}',     [PayoutAccountController::class, 'byCategory']);
+            Route::post('/payout-accounts/category/{categoryId}',    [PayoutAccountController::class, 'assignToCategory']);
         });
 
     Route::middleware('professional')
@@ -245,6 +259,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // Evidencias
             Route::get('/requests/{id}/evidences',    [WorkEvidenceController::class, 'index']);
             Route::post('/requests/{id}/evidences',   [WorkEvidenceController::class, 'store']);
+            Route::delete('/requests/{requestId}/evidences/{evidenceId}', [WorkEvidenceController::class, 'destroy']);
             Route::post('/requests/{id}/complete',    [WorkEvidenceController::class, 'complete']);
 
             // Profesional — verificar código e ingresar como completado
@@ -335,4 +350,5 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             // Plan de Saneamiento — descarga documento personalizado
             Route::get('/requests/{id}/saneamiento-document', [CertificationDocumentController::class, 'downloadSaneamiento']);
         });
+    
 });

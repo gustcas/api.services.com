@@ -13,6 +13,7 @@ class Service extends Model
 
         'category_id',
         'name',
+        'form_type',
         'price',
         'allies_percentage',
         'payment_gateway_commission',
