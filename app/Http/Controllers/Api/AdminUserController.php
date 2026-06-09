@@ -378,6 +378,28 @@ class AdminUserController extends Controller
         // Solicitudes de hoy
         $todayRequests = \App\Models\ServiceRequest::whereDate('created_at', today())->count();
 
+        // Últimos 7 días — usuarios nuevos por día
+        $usersByDay = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->toDateString();
+            $usersByDay[] = [
+                'date'  => now()->subDays($i)->format('d M'),
+                'count' => User::whereDate('created_at', $date)->where('role', '!=', 'admin')->count(),
+            ];
+        }
+
+        // Últimos 7 días — ingresos por día
+        $incomeByDay = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->toDateString();
+            $incomeByDay[] = [
+                'date'   => now()->subDays($i)->format('d M'),
+                'amount' => \App\Models\Payment::where('status', 'approved')
+                    ->whereDate('created_at', $date)
+                    ->sum('amount_in_cents') / 100,
+            ];
+        }
+
         return [
             // Usuarios
             'totalUsers'           => $total,
@@ -405,6 +427,8 @@ class AdminUserController extends Controller
             'inactive'      => $inactiveUsers,
             'verified'      => $approvedProfs,
             'pending'       => $pendingProfs,
+            'usersByDay'  => $usersByDay,
+            'incomeByDay' => $incomeByDay,
         ];
     }
 }
