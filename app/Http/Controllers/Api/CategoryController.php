@@ -29,10 +29,11 @@ class CategoryController extends Controller
         ]);
 
         $category = Category::create([
-            'name'        => trim($request->name),
-            'slug'        => Str::slug($request->name),
-            'description' => $request->description,
-            'is_active'   => $request->boolean('is_active', true),
+            'name'                 => trim($request->name),
+            'slug'                 => Str::slug($request->name),
+            'description'          => $request->description,
+            'icon_key'             => $request->icon_key ?? null,
+            'is_active'            => $request->boolean('is_active', true),
             'asecalidad_account_id'=> $request->asecalidad_account_id ?? null,
         ]);
 
@@ -59,12 +60,12 @@ class CategoryController extends Controller
         $before = $category->only('name', 'description', 'is_active');
 
         $category->update([
-            'name'        => trim($request->name),
-            'slug'        => Str::slug($request->name),
-            'description' => $request->description,
-            'is_active'   => $request->boolean('is_active', $category->is_active),
+            'name'                 => trim($request->name),
+            'slug'                 => Str::slug($request->name),
+            'description'          => $request->description,
+            'icon_key'             => $request->icon_key ?? null,
+            'is_active'            => $request->boolean('is_active', $category->is_active),
             'asecalidad_account_id'=> $request->asecalidad_account_id ?? null,
-
         ]);
 
         AdminLog::record(
