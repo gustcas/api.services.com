@@ -13,6 +13,7 @@ class Category extends Model
         'name',
         'slug',
         'description',
+        'icon_key',
         'is_active',
         'asecalidad_account_id',
     ];

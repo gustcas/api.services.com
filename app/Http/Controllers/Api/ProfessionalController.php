@@ -29,7 +29,7 @@ public function dashboard(Request $request)
                 ->count();
 
             $stats['ingresos_hoy'] = \App\Models\ServiceRequest::where('professional_id', $professional->id)
-                ->whereDate('updated_at', $today)
+                ->whereDate('completed_at', $today)
                 ->where('status', 'completed')
                 ->where('payment_status', 'paid')
                 ->with('service')
@@ -170,24 +170,49 @@ public function dashboard(Request $request)
                 'id'           => $r->id,
                 'service_name' => $r->service ? $r->service->name : 'Servicio',
                 'client_name'  => $r->client ? $r->client->name : 'Cliente',
-                'service_date' => $r->service_date,
+                'service_date' => $r->completed_at ?? $r->updated_at ?? $r->service_date,
                 'amount'       => $gross,
                 'allies_pct'   => $alliesPct,
                 'net_amount'   => $netAmount,
                 'status'       => $r->status,
-                'completed_at' => $r->completed_at,
+                'completed_at' => $r->completed_at ?? $r->updated_at,
                 'disbursement_status' => $r->disbursement_status ?? 'pending',
             ];
         });
 
         $totalEarned = $earnings->where('status', 'completed')->sum('net_amount');
 
+        $startOfMonth = now()->startOfMonth();
+        $sevenDaysAgo = now()->subDays(7);
+
+        $totalThisMonth = 0;
+        $totalThisWeek  = 0;
+        $totalPending   = 0;
+
+        foreach ($earnings as $e) {
+            if ($e['status'] === 'completed') {
+                $completedAt = $e['completed_at'] ? new \Carbon\Carbon($e['completed_at']) : null;
+                // Solo contar si tiene fecha de completado en este mes
+                if ($completedAt && $completedAt >= $startOfMonth) {
+                    $totalThisMonth += $e['net_amount'];
+                }
+                if ($completedAt && $completedAt >= $sevenDaysAgo) {
+                    $totalThisWeek += $e['net_amount'];
+                }
+            }
+            if ($e['status'] === 'accepted' || ($e['status'] === 'completed' && ($e['disbursement_status'] ?? '') === 'pending')) {
+                $totalPending += $e['net_amount'];
+            }
+        }
         return response()->json([
             'success' => true,
             'summary' => [
-                'total_earned' => round($totalEarned, 2),
-                'total_jobs'   => $completed->count(),
-                'pending_jobs' => $jobs->where('status', 'accepted')->count(),
+                'total_earned'    => round($totalEarned, 2),
+                'total_jobs'      => $completed->count(),
+                'pending_jobs'    => $jobs->where('status', 'accepted')->count(),
+                'total_this_month'=> round($totalThisMonth, 2),
+                'total_this_week' => round($totalThisWeek, 2),
+                'total_pending'   => round($totalPending, 2),
             ],
             'earnings' => $earnings,
         ]);
