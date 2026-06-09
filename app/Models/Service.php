@@ -10,10 +10,10 @@ class Service extends Model
     use HasFactory;
 
     protected $fillable = [
-
         'category_id',
         'name',
         'form_type',
+        'icon_key',
         'price',
         'allies_percentage',
         'payment_gateway_commission',
@@ -21,7 +21,6 @@ class Service extends Model
         'asecalidad_commission',
         'maintenance_percentage',
         'is_active'
-
     ];
 
     public function category()
