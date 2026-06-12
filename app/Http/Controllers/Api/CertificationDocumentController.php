@@ -97,6 +97,15 @@ public function downloadPlan(Request $request, $requestId)
         return response()->json(['error' => 'Documento no disponible'], 404);
     }
 
+    $pdfFile = $this->convertToPdf($planFile);
+    \Log::info('pdfFile result: ' . ($pdfFile ?? 'NULL'));
+    if ($pdfFile) {
+        @unlink($planFile);
+        return response()->download($pdfFile, "Plan_Capacitacion_Ciclo{$cycle}.pdf", [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
+    \Log::info('Fallback to docx');
     return response()->download($planFile, "Plan_Capacitacion_Ciclo{$cycle}.docx", [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ])->deleteFileAfterSend(true);
@@ -116,6 +125,13 @@ public function downloadEval(Request $request, $requestId)
         return response()->json(['error' => 'Documento no disponible'], 404);
     }
 
+    $pdfFile = $this->convertToPdf($evalFile);
+    if ($pdfFile) {
+        @unlink($evalFile);
+        return response()->download($pdfFile, 'Evaluacion.pdf', [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
     return response()->download($evalFile, 'Evaluacion.docx', [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ])->deleteFileAfterSend(true);
@@ -137,6 +153,12 @@ public function downloadVideo(Request $request, $requestId)
         return response()->json(['error' => 'Documento no disponible'], 404);
     }
 
+    $pdfFile = $this->convertToPdf($videoDocPath);
+    if ($pdfFile) {
+        return response()->download($pdfFile, "Video_Ciclo{$cycle}.pdf", [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
     return response()->download($videoDocPath, "Video_Ciclo{$cycle}.docx", [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ]);
@@ -247,6 +269,9 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
     $template->setValue('celular',             $serviceRequest->company_phone   ?? '');
     $template->setValue('ciudad',              $serviceRequest->city ? $serviceRequest->city->name : '');
     $template->setValue('fecha',               $serviceRequest->service_date    ?? '');
+    $template->setValue('mes',                 $serviceRequest->service_date
+        ? \Carbon\Carbon::parse($serviceRequest->service_date)->locale('es')->isoFormat('MMM YY')
+        : '');
     $template->setValue('lugar',               $serviceRequest->company_locality ?? '');
 
     // Datos del profesional / capacitador
@@ -449,6 +474,63 @@ private function replaceImagesByDescr(string $docxPath, array $replacements): vo
     $zip->addFromString('word/document.xml', $newDocumentXml);
     $zip->addFromString('word/_rels/document.xml.rels', $newRelsXml);
     $zip->close();
+}
+
+private function convertToPdf(string $docxPath): ?string
+{
+    $candidates = [
+        'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+        '/usr/bin/libreoffice',
+        '/usr/bin/soffice',
+    ];
+
+    $soffice = null;
+    foreach ($candidates as $c) {
+        if (file_exists($c)) { $soffice = $c; break; }
+    }
+
+    if (!$soffice) return null;
+
+    $outDir  = sys_get_temp_dir();
+
+    // En Windows usar comillas dobles y reemplazar barras
+    if (PHP_OS_FAMILY === 'Windows') {
+        $cmd = '"' . $soffice . '" --headless --convert-to pdf --outdir "' . $outDir . '" "' . $docxPath . '" 2>&1';
+    } else {
+        $cmd = escapeshellarg($soffice) . ' --headless --convert-to pdf --outdir ' . escapeshellarg($outDir) . ' ' . escapeshellarg($docxPath) . ' 2>&1';
+    }
+
+    exec($cmd, $output, $code);
+
+    \Log::info('LibreOffice cmd: ' . $cmd);
+    \Log::info('LibreOffice output: ' . implode("\n", $output));
+    \Log::info('LibreOffice code: ' . $code);
+
+    if ($code !== 0) {
+        \Log::error('LibreOffice convert failed: ' . implode("\n", $output));
+        return null;
+    }
+
+    $pdfName = pathinfo($docxPath, PATHINFO_FILENAME) . '.pdf';
+    $pdfPath = $outDir . DIRECTORY_SEPARATOR . $pdfName;
+
+    // Esperar hasta 8 segundos
+    $waited = 0;
+    while (!file_exists($pdfPath) && $waited < 8) {
+        sleep(1);
+        $waited++;
+    }
+
+    if (!file_exists($pdfPath)) return null;
+
+    // Copiar a carpeta storage para evitar que se borre
+    $safePath = storage_path('app/temp_pdfs/' . $pdfName);
+    if (!is_dir(storage_path('app/temp_pdfs'))) {
+        mkdir(storage_path('app/temp_pdfs'), 0755, true);
+    }
+    copy($pdfPath, $safePath);
+
+    return file_exists($safePath) ? $safePath : null;
 }
 
 }
