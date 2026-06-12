@@ -192,6 +192,8 @@ public function downloadSaneamiento(Request $request, $requestId)
     $template->setValue('empresa',    $serviceRequest->company_name  ?? '');
     $template->setValue('propietario', $serviceRequest->company_owners ?? '');
     $template->setValue('celular',    $serviceRequest->company_phone  ?? '');
+    $template->setValue('fecha',        $serviceRequest->service_date ?? '');
+    $template->setValue('capacitador', $profUser ? $profUser->name : '');
 
     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'saneamiento_' . $serviceRequest->id . '.docx';
     $template->saveAs($tmpPath);
@@ -220,10 +222,15 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
         return response()->json(['error' => 'Documento no disponible'], 404);
     }
 
+    $professional = $serviceRequest->professional;
+    $profUser     = $professional ? $professional->user : null;
+
     $template = new TemplateProcessor($templatePath);
     $template->setValue('empresa',     $serviceRequest->company_name   ?? '');
     $template->setValue('propietario', $serviceRequest->company_owners ?? '');
     $template->setValue('celular',     $serviceRequest->company_phone  ?? '');
+    $template->setValue('fecha',        $serviceRequest->service_date ?? '');
+    $template->setValue('capacitador', $profUser ? $profUser->name : '');
 
     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'saneamiento_admin_' . $serviceRequest->id . '.docx';
     $template->saveAs($tmpPath);
@@ -269,9 +276,11 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
     $template->setValue('celular',             $serviceRequest->company_phone   ?? '');
     $template->setValue('ciudad',              $serviceRequest->city ? $serviceRequest->city->name : '');
     $template->setValue('fecha',               $serviceRequest->service_date    ?? '');
-    $template->setValue('mes',                 $serviceRequest->service_date
-        ? \Carbon\Carbon::parse($serviceRequest->service_date)->locale('es')->isoFormat('MMM YY')
-        : '');
+    $template->setValue('mes', $serviceRequest->service_date
+    ? ucfirst(\Carbon\Carbon::parse($serviceRequest->service_date)
+        ->locale('es')
+        ->isoFormat('MMM YYYY'))
+    : '');
     $template->setValue('lugar',               $serviceRequest->company_locality ?? '');
 
     // Datos del profesional / capacitador
@@ -287,6 +296,8 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
         $template->setValue("participante_cedula_{$n}",  $hasParticipant ? ($ids[$idx]   ?? '')                   : '');
         $template->setValue("participante_sesion_{$n}",  $hasParticipant ? ($serviceRequest->service_date ?? '')  : '');
         $template->setValue("participante_empresa_{$n}", $hasParticipant ? ($serviceRequest->company_name  ?? '')  : '');
+        $template->setValue("fecha_{$n}", $hasParticipant ? ($serviceRequest->service_date ?? '') : '');
+        $template->setValue("empresa_{$n}", $hasParticipant ? ($serviceRequest->company_name ?? '') : '');
     }
 
     // Guardar temporal
