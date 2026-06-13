@@ -198,6 +198,13 @@ public function downloadSaneamiento(Request $request, $requestId)
     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'saneamiento_' . $serviceRequest->id . '.docx';
     $template->saveAs($tmpPath);
 
+    $pdfFile = $this->convertToPdf($tmpPath);
+    if ($pdfFile) {
+        @unlink($tmpPath);
+        return response()->download($pdfFile, "PlanSaneamiento_{$serviceRequest->id}.pdf", [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
     return response()->download($tmpPath, "PlanSaneamiento_{$serviceRequest->id}.docx", [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ])->deleteFileAfterSend(true);
@@ -235,6 +242,13 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
     $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'saneamiento_admin_' . $serviceRequest->id . '.docx';
     $template->saveAs($tmpPath);
 
+    $pdfFile = $this->convertToPdf($tmpPath);
+    if ($pdfFile) {
+        @unlink($tmpPath);
+        return response()->download($pdfFile, "PlanSaneamiento_{$serviceRequest->id}.pdf", [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
     return response()->download($tmpPath, "PlanSaneamiento_{$serviceRequest->id}.docx", [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ])->deleteFileAfterSend(true);
@@ -255,7 +269,7 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
         return $this->categoryFolderMap[$categoryName] ?? 'restaurante';
     }
 
-   private function fillPlanTemplate($templatePath, $serviceRequest): ?string
+   private function fillPlanTemplate($templatePath, $serviceRequest, bool $conFirmas = true): ?string
 {
     if (!file_exists($templatePath)) {
         return null;
@@ -316,7 +330,7 @@ public function downloadSaneamientoAdmin(Request $request, $requestId)
     for ($n = 1; $n <= 12; $n++) {
         $idx            = $n - 1;
         $hasParticipant = isset($names[$idx]) && $names[$idx] !== '';
-        if ($hasParticipant && isset($firmasDisponibles[$firmaIndex])) {
+        if ($conFirmas && $hasParticipant && isset($firmasDisponibles[$firmaIndex])) {
             $imageReplacements["\${participante_firma_{$n}}"] = $firmasDisponibles[$firmaIndex];
             $firmaIndex++;
         } else {
@@ -542,6 +556,57 @@ private function convertToPdf(string $docxPath): ?string
     copy($pdfPath, $safePath);
 
     return file_exists($safePath) ? $safePath : null;
+}
+// descargar documentos - usuario profesional
+public function downloadForProfessional(Request $request, $id, $type)
+{
+    $professional = $request->user()->professional;
+    $serviceRequest = \App\Models\ServiceRequest::with(['service', 'professional.user', 'city'])
+        ->where('id', $id)
+        ->where('professional_id', $professional->id)
+        ->where('status', 'accepted')
+        ->firstOrFail();
+
+    if ($type === 'plan') {
+        $cycle    = $serviceRequest->cycle ?? 1;
+        $category = $this->resolveCategoryFolder($serviceRequest);
+        $planPath = storage_path("app/certifications/{$category}/ciclo{$cycle}/plan.docx");
+        $planFile = $this->fillPlanTemplate($planPath, $serviceRequest, false);
+
+        if (!$planFile || !file_exists($planFile)) {
+            return response()->json(['message' => 'Plantilla no encontrada'], 404);
+        }
+
+        $pdfFile = $this->convertToPdf($planFile);
+        if ($pdfFile) {
+            @unlink($planFile);
+            return response()->download($pdfFile, "Plan_Capacitacion_{$id}.pdf", [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
+        }
+        return response()->download($planFile, "Plan_Capacitacion_{$id}.docx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ])->deleteFileAfterSend(true);
+    }
+
+    if ($type === 'eval-blank') {
+        $blankDir  = storage_path('app/certifications/evaluaciones_blanco');
+        $blankFile = $this->randomFile($blankDir, ['docx']);
+        if (!$blankFile) {
+            return response()->json(['message' => 'No hay plantillas de evaluación disponibles'], 404);
+        }
+        $pdfFile = $this->convertToPdf($blankFile);
+        if ($pdfFile) {
+            return response()->download($pdfFile, "Evaluacion_{$id}.pdf", [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
+        }
+        return response()->download($blankFile, "Evaluacion_{$id}.docx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]);
+    }
+
+    return response()->json(['message' => 'Tipo no válido'], 400);
 }
 
 }

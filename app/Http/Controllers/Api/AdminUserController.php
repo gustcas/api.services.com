@@ -282,11 +282,14 @@ class AdminUserController extends Controller
     }
 
     // ── Stats del dashboard ────────────────────────────────────────
-    public function stats()
+    public function stats(Request $request)
     {
+        $user = $request->user();
         return response()->json([
-            'success' => true,
-            'stats'   => $this->getStats(),
+            'success'     => true,
+            'is_sub_admin'=> (bool)($user->is_sub_admin ?? false),
+            'permissions' => $user->permissions ?? [],
+            'stats'       => $this->getStats(),
         ]);
     }
 
