@@ -202,7 +202,7 @@ class WompiCheckoutController extends Controller
         $rows = ServiceRequest::with(['professional.user', 'service', 'payout'])
             ->where('status', 'completed')
             ->where('payment_status', 'paid')
-            ->whereIn('payout_status', ['pending_payout', 'payout_failed'])
+            ->whereIn('payout_status', ['pending_payout', 'payout_failed', 'pending_completion'])
             ->orderByDesc('updated_at')
             ->paginate(25);
 
@@ -284,7 +284,7 @@ class WompiCheckoutController extends Controller
         $totalDispersado = \App\Models\Payout::where('status', 'approved')->sum('amount');
         $dispersPendientes = ServiceRequest::where('status', 'completed')
             ->where('payment_status', 'paid')
-            ->whereIn('payout_status', ['pending_payout', 'payout_failed'])
+            ->whereIn('payout_status', ['pending_payout', 'payout_failed', 'pending_completion'])
             ->count();
 
         return response()->json([

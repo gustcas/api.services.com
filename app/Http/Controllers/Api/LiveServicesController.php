@@ -76,7 +76,7 @@ class LiveServicesController extends Controller
     public function requests(Request $request)
     {
         $query = ServiceRequest::with([
-            'client:id,name,email,last_seen_at',
+            'client:id,name,email,phone,last_seen_at',
             'professional.user:id,name,email,last_seen_at',
             'service:id,name,category_id',
             'service.category:id,name',
@@ -113,7 +113,10 @@ class LiveServicesController extends Controller
                     'category_name'     => $sr->service && $sr->service->category ? $sr->service->category->name : '',
                     'client_name'       => $sr->client ? $sr->client->name : '—',
                     'client_email'      => $sr->client ? $sr->client->email : '—',
+                    'client_phone'      => $sr->company_phone ?? ($sr->client ? $sr->client->phone : null),
                     'client_online'     => $clientOnline,
+                    'people_names'          => $sr->people_names ?? [],
+                    'people_identifications' => $sr->people_identifications ?? [],
                     'professional_name' => $profUser ? $profUser->name : null,
                     'professional_email'=> $profUser ? $profUser->email : null,
                     'professional_online' => $profOnline,

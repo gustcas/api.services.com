@@ -55,6 +55,7 @@ class SubAdminController extends Controller
             'password'       => Hash::make($request->password),
             'role'           => 'admin',
             'is_super_admin' => false,
+            'is_sub_admin'   => true,
             'is_active'      => true,
             'permissions'    => $this->normalizeModules($request->modules ?? []),
         ]);
@@ -152,8 +153,9 @@ class SubAdminController extends Controller
         ];
     }
 
-    private function normalizeModules(array $modules): array
+    private function normalizeModules($modules): array
     {
+        if (!is_array($modules)) $modules = [];
         $result = [];
         foreach (self::MODULE_PERMISSIONS as $mod => $availablePerms) {
             $raw = $modules[$mod] ?? [];
@@ -165,14 +167,17 @@ class SubAdminController extends Controller
                     $entry[$p] = $enabled && $p === 'read';
                 }
             } else {
+                $raw   = is_array($raw) ? $raw : [];
                 $entry = ['enabled' => (bool) ($raw['enabled'] ?? false)];
                 foreach ($availablePerms as $p) {
                     $entry[$p] = (bool) ($raw[$p] ?? false);
                 }
-                // Si enabled pero sin ningún permiso, forzar read
                 if ($entry['enabled']) {
-                    $anyPerm = array_filter($availablePerms, fn($p) => !empty($entry[$p]));
-                    if (empty($anyPerm)) $entry['read'] = true;
+                    $hasAny = array_filter(
+                        is_array($availablePerms) ? $availablePerms : [],
+                        fn($p) => !empty($entry[$p])
+                    );
+                    if (empty($hasAny)) $entry['read'] = true;
                 }
             }
 
