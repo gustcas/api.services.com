@@ -156,6 +156,7 @@ class ServiceRequestController extends Controller
                 'people_count' => $r->people_count,
                 'service_name' => $r->service ? $r->service->name : null,
                 'icon_key'     => $r->service ? $r->service->icon_key : null,
+                'form_type'    => $r->service ? $r->service->form_type : null,
                 'client_name'  => $r->client ? $r->client->name : 'Cliente',
                 'city_name'    => $r->city ? $r->city->name : 'Virtual',
             ];
@@ -229,6 +230,8 @@ class ServiceRequestController extends Controller
                 'company_name' => $r->company_name,
                 'service_name' => $r->service ? $r->service->name : null,
                 'icon_key'     => $r->service ? $r->service->icon_key : null,
+                'form_type'    => $r->service ? $r->service->form_type : null,
+                'net_amount'   => $r->service ? round((float)$r->budget * (float)$r->service->allies_percentage / 100, 2) : $r->budget,
                 'client_name'  => $r->client ? $r->client->name : 'Cliente',
                 'client_phone' => $r->client ? $r->client->phone : null,
                 'city_name'    => $r->city ? $r->city->name : null,

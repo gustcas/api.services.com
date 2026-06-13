@@ -241,6 +241,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
         ->group(function () {
 
         Route::get('/dashboard', [ProfessionalController::class, 'dashboard']);
+        Route::get('/requests/{id}/certification-document/{type}', [CertificationDocumentController::class, 'downloadForProfessional']);
         Route::get('/earnings',  [ProfessionalController::class, 'earnings']);
         Route::get('/services',  [ProfessionalController::class, 'myServices']);
         Route::post('/profile', [ProfessionalController::class, 'storeOrUpdate']);
