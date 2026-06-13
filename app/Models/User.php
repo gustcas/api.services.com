@@ -20,6 +20,7 @@ class User extends Authenticatable
         'role',
         'is_active',
         'is_super_admin',
+        'is_sub_admin',
         'permissions',
         'phone',
         'city',
@@ -38,6 +39,7 @@ class User extends Authenticatable
         'otp_expires_at'    => 'datetime',
         'is_active'         => 'boolean',
         'is_super_admin'    => 'boolean',
+        'is_sub_admin'      => 'boolean',
         'permissions'       => 'array',
     ];
 
