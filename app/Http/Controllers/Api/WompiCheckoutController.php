@@ -212,7 +212,19 @@ class WompiCheckoutController extends Controller
                 'service_name'     => optional($sr->service)->name ?? '—',
                 'professional_name'=> optional(optional($sr->professional)->user)->name ?? '—',
                 'budget'           => $sr->budget,
-                'budget_formatted' => '$' . number_format($sr->budget, 0, ',', '.'),
+                'budget_formatted'     => '$' . number_format($sr->budget, 0, ',', '.'),
+                'net_amount_formatted'        => '$' . number_format(
+                    round((float)$sr->budget * (float)(optional($sr->service)->allies_percentage ?? 0) / 100, 0),
+                    0, ',', '.'
+                ),
+                'asecalidad_amount_formatted' => '$' . number_format(
+                    round((float)$sr->budget * (float)(optional($sr->service)->asecalidad_commission ?? 0) / 100, 0),
+                    0, ',', '.'
+                ),
+                'imavicx_amount_formatted'    => '$' . number_format(
+                    round((float)$sr->budget * (float)(optional($sr->service)->imavicx_commission ?? 0) / 100, 0),
+                    0, ',', '.'
+                ),
                 'payout_status'    => $sr->payout_status,
                 'payout_id'        => optional($sr->payout)->id,
                 'payout_error'     => optional($sr->payout)->wompi_status,

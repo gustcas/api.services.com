@@ -313,4 +313,103 @@ class WompiPayoutsService
             'Accept'            => 'application/json',
         ];
     }
+
+    /**
+ * Dispersa a una cuenta PayoutAccount (ASECALIDAD, IMAVICX, etc.)
+ */
+public function disburseToAccount(ServiceRequest $sr, \App\Models\PayoutAccount $account, float $amount, string $entityType, string $triggeredBy = 'auto'): array
+{
+    if ($amount <= 0) {
+        return ['success' => false, 'message' => "Monto cero para {$entityType}."];
+    }
+
+    $reference = 'PAYOUT-' . strtoupper($entityType) . '-' . $sr->id . '-' . time();
+
+    $payout = \App\Models\Payout::create([
+        'service_request_id' => $sr->id,
+        'professional_id'    => $sr->professional_id,
+        'reference'          => $reference,
+        'amount'             => $amount,
+        'payment_method'     => 'bank_transfer',
+        'bank_name'          => $account->bank_name,
+        'account_type'       => $account->account_type,
+        'account_number'     => $account->account_number,
+        'status'             => 'processing',
+        'triggered_by'       => $triggeredBy,
+        'entity_type'        => $entityType,
+    ]);
+
+    if (!$this->apiKey || !$this->userId) {
+        Log::warning("WompiPayoutsService: sin credenciales. Simulando payout {$entityType} #{$payout->id}");
+        $payout->update(['status' => 'processing', 'wompi_status' => 'SIMULATED']);
+        return ['success' => true, 'simulated' => true, 'payout' => $payout];
+    }
+
+    $accountId = $this->getAccountId();
+    if (!$accountId) {
+        $payout->update(['status' => 'failed', 'wompi_status' => 'NO_ACCOUNT']);
+        return ['success' => false, 'message' => 'No se pudo obtener cuenta Wompi Payouts.'];
+    }
+
+    $bankId = $this->resolveBankIdByCode($account->bank_code);
+    if (!$bankId) {
+        $payout->update(['status' => 'failed', 'wompi_status' => 'NO_BANK']);
+        return ['success' => false, 'message' => "Banco no encontrado para {$entityType}: {$account->bank_code}"];
+    }
+
+    $transaction = [
+        'legalIdType'   => 'NIT',
+        'legalId'       => $account->document_number,
+        'name'          => $account->account_holder,
+        'email'         => $account->email,
+        'amount'        => (int) round($amount),
+        'reference'     => $reference . '-T1',
+        'bankId'        => $bankId,
+        'accountType'   => strtoupper($account->account_type),
+        'accountNumber' => $account->account_number,
+    ];
+
+    try {
+        $resp = Http::withoutVerifying()
+            ->withHeaders(array_merge($this->headers(), ['idempotency-key' => $reference]))
+            ->post("{$this->apiUrl}/payouts", [
+                'reference'    => $reference,
+                'accountId'    => $accountId,
+                'paymentType'  => 'PAYROLL',
+                'transactions' => [$transaction],
+            ]);
+
+        $body = $resp->json();
+
+        if ($resp->successful()) {
+            $wompiId = $body['data']['id'] ?? $body['id'] ?? null;
+            $payout->update(['wompi_payout_id' => $wompiId, 'wompi_status' => 'PENDING', 'wompi_response' => $body, 'status' => 'processing']);
+            return ['success' => true, 'payout' => $payout];
+        } else {
+            $errorMsg = $body['error']['message'] ?? 'Error desconocido';
+            $payout->update(['status' => 'failed', 'wompi_status' => 'ERROR', 'wompi_response' => $body]);
+            return ['success' => false, 'message' => "Wompi rechazó payout {$entityType}: {$errorMsg}"];
+        }
+    } catch (\Exception $e) {
+        $payout->update(['status' => 'failed', 'wompi_status' => 'EXCEPTION']);
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+
+private function resolveBankIdByCode(string $bankCode): ?string
+{
+    try {
+        $resp  = Http::withoutVerifying()->withHeaders($this->headers())->get("{$this->apiUrl}/banks");
+        $banks = $resp->json('data') ?? [];
+        foreach ($banks as $bank) {
+            $code = strtoupper($bank['bankCode'] ?? $bank['code'] ?? '');
+            if ($code === strtoupper($bankCode)) {
+                return $bank['id'];
+            }
+        }
+    } catch (\Exception $e) {
+        Log::warning("resolveBankIdByCode error: " . $e->getMessage());
+    }
+    return null;
+}
 }
