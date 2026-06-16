@@ -29,10 +29,18 @@ class WompiPayoutsController extends Controller
             return response()->json(['message' => 'Solicitud no encontrada.'], 404);
         }
 
-        $result = $this->service->disburse($sr, 'manual');
+        // Bloquear si ya tiene payouts creados
+        $existingPayouts = Payout::where('service_request_id', $sr->id)->count();
+        if ($existingPayouts > 0) {
+            return response()->json(['success' => false, 'message' => 'Esta solicitud ya tiene dispersiones registradas.'], 422);
+        }
 
-        $status = $result['success'] ? 200 : 422;
-        return response()->json($result, $status);
+        // Marcar inmediatamente para que desaparezca de pendientes y no se pueda dispersar dos veces
+        $sr->update(['payout_status' => 'payout_processing']);
+
+        \App\Jobs\ProcessPayoutJob::dispatch($sr->id);
+
+        return response()->json(['success' => true, 'message' => 'Dispersión en proceso.'], 200);
     }
 
     /**
@@ -66,6 +74,7 @@ class WompiPayoutsController extends Controller
                 'wompi_status'        => $p->wompi_status,
                 'wompi_payout_id'     => $p->wompi_payout_id,
                 'triggered_by'        => $p->triggered_by,
+                'entity_type'         => $p->entity_type ?? 'professional',
                 'paid_at'             => $p->paid_at ? $p->paid_at->format('d/m/Y H:i') : null,
                 'created_at'          => $p->created_at->format('d/m/Y H:i'),
                 'professional_name'   => optional(optional($p->professional)->user)->name ?? '—',

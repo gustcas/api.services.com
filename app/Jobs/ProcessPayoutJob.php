@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Models\CategoryPayoutAccount;
+use App\Models\PayoutAccount;
 use App\Models\ServiceRequest;
 use App\Services\WompiPayoutsService;
 use Illuminate\Bus\Queueable;
@@ -16,7 +18,7 @@ class ProcessPayoutJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries   = 3;
-    public $backoff = [60, 300, 900]; // 1min, 5min, 15min entre reintentos
+    public $backoff = [60, 300, 900];
 
     protected int $serviceRequestId;
 
@@ -38,71 +40,98 @@ class ProcessPayoutJob implements ShouldQueue
             return;
         }
 
-        // Evitar doble dispersión
-        if (in_array($sr->disbursement_status, ['processing', 'paid'])) {
-            Log::info("ProcessPayoutJob: #{$this->serviceRequestId} ya está en {$sr->disbursement_status}. Omitiendo.");
+        if ($sr->disbursement_status === 'paid') {
+            Log::info("ProcessPayoutJob: #{$this->serviceRequestId} ya está pagado. Omitiendo.");
             return;
         }
 
-        // Resetear payout_status si quedó atascado en payout_processing
         if ($sr->payout_status === 'payout_processing') {
             $sr->update(['payout_status' => 'pending_completion']);
             $sr->refresh();
         }
 
-        // Verificar con Wompi si ya existe un payout para esta solicitud
         $existingPayout = \App\Models\Payout::where('service_request_id', $sr->id)
             ->whereIn('status', ['paid', 'approved'])
             ->first();
 
         if ($existingPayout) {
-            Log::info("ProcessPayoutJob: Payout ya existe para #{$sr->id} — marcando como pagado sin reintentar.");
-            $sr->update([
-                'disbursement_status' => 'paid',
-                'disbursed_at'        => now(),
-            ]);
+            Log::info("ProcessPayoutJob: Payout ya existe para #{$sr->id} — marcando como pagado.");
+            $sr->update(['disbursement_status' => 'paid', 'disbursed_at' => now()]);
             return;
         }
 
-        // Marcar como procesando para evitar duplicados
         $sr->update([
             'disbursement_status'   => 'processing',
             'disbursement_attempts' => $sr->disbursement_attempts + 1,
         ]);
 
         try {
-            $result = $payoutsService->disburse($sr, 'auto');
-
-            Log::info("ProcessPayoutJob: resultado para #{$this->serviceRequestId}: " . json_encode($result));
-
-            if ($result['success']) {
-                $updated = $sr->update([
-                    'disbursement_status' => 'paid',
-                    'disbursed_at'        => now(),
-                    'disbursement_error'  => null,
-                ]);
-                Log::info("ProcessPayoutJob: update result: " . ($updated ? 'OK' : 'FAIL') . " para #{$this->serviceRequestId}.");
-                Log::info("ProcessPayoutJob: Dispersión exitosa para #{$this->serviceRequestId}.");
-            } else {
-                throw new \Exception($result['message'] ?? 'Error desconocido en dispersión');
+            // 1. Dispersión al profesional (allies_percentage)
+            $resultProf = $payoutsService->disburse($sr, 'auto');
+            Log::info("ProcessPayoutJob: profesional resultado #{$this->serviceRequestId}: " . json_encode($resultProf));
+            if (!$resultProf['success']) {
+                throw new \Exception($resultProf['message'] ?? 'Error en dispersión al profesional');
             }
+
+            // 2. Dispersión a ASECALIDAD (asecalidad_commission%)
+            $service       = $sr->service;
+            $budget        = (float) $sr->budget;
+            $categoryId    = $service ? $service->category_id : null;
+            $asecalidadPct = $service ? (float) $service->asecalidad_commission : 0;
+            $imavicxPct    = $service ? (float) $service->imavicx_commission : 0;
+
+            if ($asecalidadPct > 0) {
+                $category = $sr->service->category ?? null;
+                $asecalidadAccountId = $category ? $category->asecalidad_account_id : null;
+                $asecalidadAccount = $asecalidadAccountId
+                    ? PayoutAccount::where('id', $asecalidadAccountId)->where('is_active', true)->first()
+                    : null;
+
+                if ($asecalidadAccount) {
+                    $amount = round($budget * $asecalidadPct / 100, 2);
+                    $resultAsec = $payoutsService->disburseToAccount($sr, $asecalidadAccount, $amount, 'asecalidad', 'auto');
+                    Log::info("ProcessPayoutJob: ASECALIDAD resultado #{$this->serviceRequestId}: " . json_encode($resultAsec));
+                } else {
+                    Log::warning("ProcessPayoutJob: Sin cuenta ASECALIDAD activa para SR#{$sr->id}");
+                }
+            }
+
+            // 3. Dispersión a IMAVICX (imavicx_commission%)
+            if ($imavicxPct > 0) {
+                $imavicxAccount = PayoutAccount::where('entity_type', 'imavicx')
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($imavicxAccount) {
+                    $amount = round($budget * $imavicxPct / 100, 2);
+                    $resultImavicx = $payoutsService->disburseToAccount($sr, $imavicxAccount, $amount, 'imavicx', 'auto');
+                    Log::info("ProcessPayoutJob: IMAVICX resultado #{$this->serviceRequestId}: " . json_encode($resultImavicx));
+                } else {
+                    Log::warning("ProcessPayoutJob: Sin cuenta IMAVICX registrada para SR#{$sr->id}");
+                }
+            }
+
+            $sr->update([
+                'disbursement_status' => 'paid',
+                'payout_status'       => 'payout_approved',
+                'disbursed_at'        => now(),
+                'disbursement_error'  => null,
+            ]);
+            Log::info("ProcessPayoutJob: Dispersión completa para #{$this->serviceRequestId}.");
+
         } catch (\Exception $e) {
             Log::error("ProcessPayoutJob: Error en #{$this->serviceRequestId}: " . $e->getMessage());
-
             $sr->update([
                 'disbursement_status' => 'pending',
                 'disbursement_error'  => $e->getMessage(),
             ]);
-
-            // Relanzar para que la queue reintente
             throw $e;
         }
     }
 
     public function failed(\Throwable $exception): void
     {
-        Log::error("ProcessPayoutJob: Falló definitivamente #{$this->serviceRequestId} después de {$this->tries} intentos: " . $exception->getMessage());
-
+        Log::error("ProcessPayoutJob: Falló definitivamente #{$this->serviceRequestId}: " . $exception->getMessage());
         $sr = ServiceRequest::find($this->serviceRequestId);
         if ($sr) {
             $sr->update([
