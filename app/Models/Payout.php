@@ -19,6 +19,7 @@ class Payout extends Model
         'wompi_status',
         'status',
         'triggered_by',
+        'entity_type',
         'wompi_response',
         'paid_at',
     ];
