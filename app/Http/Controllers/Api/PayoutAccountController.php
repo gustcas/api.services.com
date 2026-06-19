@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\PayoutAccount;
 use App\Models\CategoryPayoutAccount;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class PayoutAccountController extends Controller
 {
@@ -98,4 +100,60 @@ class PayoutAccountController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    public function banks()
+{
+    $apiKey = config('wompi.payouts_api_key');
+    $userId = config('wompi.payouts_user_id');
+    $apiUrl = config('wompi.payouts_api_url');
+
+    if ($apiKey && $userId) {
+        try {
+            $resp = Http::withoutVerifying()
+                ->withHeaders([
+                    'x-api-key'         => $apiKey,
+                    'user-principal-id' => $userId,
+                ])
+                ->get("{$apiUrl}/banks", ['status' => 'ACTIVE']);
+
+            if ($resp->successful()) {
+                $banks = collect($resp->json('data') ?? [])
+                    ->map(fn($b) => [
+                        'id'   => $b['id'],
+                        'code' => $b['bankCode'] ?? $b['code'] ?? '',
+                        'name' => $b['name'],
+                    ])
+                    ->values()
+                    ->toArray();
+
+                if (!empty($banks)) {
+                    return response()->json(['banks' => $banks]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Admin banks API error: ' . $e->getMessage());
+        }
+    }
+
+    // Fallback estático
+    return response()->json(['banks' => [
+        ['id' => 'bancolombia',   'code' => 'BANCOLOMBIA',          'name' => 'Bancolombia'],
+        ['id' => 'bogota',        'code' => 'BANCO_BOGOTA',         'name' => 'Banco de Bogotá'],
+        ['id' => 'davivienda',    'code' => 'DAVIVIENDA',           'name' => 'Davivienda'],
+        ['id' => 'bbva',          'code' => 'BBVA',                 'name' => 'BBVA Colombia'],
+        ['id' => 'popular',       'code' => 'BANCO_POPULAR',        'name' => 'Banco Popular'],
+        ['id' => 'occidente',     'code' => 'BANCO_OCCIDENTE',      'name' => 'Banco de Occidente'],
+        ['id' => 'av_villas',     'code' => 'AV_VILLAS',            'name' => 'Banco AV Villas'],
+        ['id' => 'agrario',       'code' => 'BANCO_AGRARIO',        'name' => 'Banco Agrario'],
+        ['id' => 'itau',          'code' => 'ITAU',                 'name' => 'Itaú Colombia'],
+        ['id' => 'scotiabank',    'code' => 'SCOTIABANK_COLPATRIA', 'name' => 'Scotiabank Colpatria'],
+        ['id' => 'colmena',       'code' => 'COLMENA',              'name' => 'Colmena'],
+        ['id' => 'caja_social',   'code' => 'CAJA_SOCIAL',          'name' => 'Banco Caja Social'],
+        ['id' => 'gnb_sudameris', 'code' => 'GNB_SUDAMERIS',        'name' => 'GNB Sudameris'],
+        ['id' => 'cooperativa',   'code' => 'COOPCENTRAL',          'name' => 'Coopcentral'],
+        ['id' => 'pichincha',     'code' => 'PICHINCHA',            'name' => 'Banco Pichincha'],
+        ['id' => 'falabella',     'code' => 'FALABELLA',            'name' => 'Banco Falabella'],
+        ['id' => 'finandina',     'code' => 'FINANDINA',            'name' => 'Banco Finandina'],
+    ]]);
+}
 }

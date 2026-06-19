@@ -234,6 +234,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::delete('/payout-accounts/{payoutAccount}',        [PayoutAccountController::class, 'destroy']);
             Route::get('/payout-accounts/category/{categoryId}',     [PayoutAccountController::class, 'byCategory']);
             Route::post('/payout-accounts/category/{categoryId}',    [PayoutAccountController::class, 'assignToCategory']);
+            Route::get('/banks',                                      [PayoutAccountController::class, 'banks']);
         });
 
     Route::middleware('professional')
