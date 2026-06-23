@@ -85,6 +85,10 @@ class SubAdminController extends Controller
         if ($request->has('name'))      $data['name']        = $request->name;
         if ($request->has('modules'))   $data['permissions'] = $this->normalizeModules($request->modules);
         if ($request->has('is_active')) $data['is_active']   = $request->is_active;
+        if ($request->filled('password')) {
+            $request->validate(['password' => 'string|min:8']);
+            $data['password'] = \Illuminate\Support\Facades\Hash::make($request->password);
+        }
 
         $user->update($data);
 
