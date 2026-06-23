@@ -151,7 +151,7 @@ class WompiCheckoutService
             'wompi_transaction_id' => $transaction['id'] ?? null,
             'wompi_status'         => $wompiStatus,
             'wompi_data'           => $transaction,
-            'status'               => $wompiStatus === 'APPROVED' ? 'approved' : 'failed',
+            'status'               => $wompiStatus === 'APPROVED' ? 'approved' : ($wompiStatus === 'DECLINED' ? 'declined' : 'failed'),
             'paid_at'              => $wompiStatus === 'APPROVED' ? now() : null,
         ]);
 

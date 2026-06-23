@@ -170,6 +170,9 @@ class WompiCheckoutController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        } else {
+            // No mostrar pendientes sin confirmar (referencia creada sin pagar)
+            $query->where('status', '!=', 'pending');
         }
 
         $payments = $query->paginate(25);

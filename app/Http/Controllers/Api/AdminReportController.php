@@ -19,6 +19,7 @@ class AdminReportController extends Controller
 
         // Por categoría
         $byCategory = ServiceRequest::join('categories', 'service_requests.category_id', '=', 'categories.id')
+            ->whereIn('service_requests.status', ['accepted', 'completed'])
             ->selectRaw('categories.name, COUNT(*) as total, SUM(CASE WHEN service_requests.status = "completed" THEN 1 ELSE 0 END) as completed, COALESCE(SUM(CASE WHEN service_requests.status = "completed" THEN service_requests.budget ELSE 0 END), 0) as revenue')
             ->groupBy('categories.name')
             ->orderByDesc('total')
@@ -47,8 +48,11 @@ class AdminReportController extends Controller
         // Top profesionales por trabajos completados
         $topProfessionals = Professional::join('users', 'professionals.user_id', '=', 'users.id')
             ->join('service_requests', 'service_requests.professional_id', '=', 'professionals.id')
+            ->join('services', 'service_requests.service_id', '=', 'services.id')
             ->where('service_requests.status', 'completed')
-            ->selectRaw('users.name, professionals.id, COUNT(service_requests.id) as jobs, COALESCE(SUM(service_requests.budget), 0) as revenue')
+            ->selectRaw('users.name, professionals.id, COUNT(service_requests.id) as jobs,
+                COALESCE(SUM(service_requests.budget), 0) as revenue,
+                COALESCE(SUM(service_requests.budget * services.allies_percentage / 100), 0) as net_revenue')
             ->groupBy('professionals.id', 'users.name')
             ->orderByDesc('jobs')
             ->limit(5)
