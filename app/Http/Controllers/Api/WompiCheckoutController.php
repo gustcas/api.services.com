@@ -228,6 +228,10 @@ class WompiCheckoutController extends Controller
                     round((float)$sr->budget * (float)(optional($sr->service)->imavicx_commission ?? 0) / 100, 0),
                     0, ',', '.'
                 ),
+                'maintenance_amount_formatted' => '$' . number_format(
+                    round((float)$sr->budget * (float)(optional($sr->service)->maintenance_percentage ?? 0) / 100, 0),
+                    0, ',', '.'
+                ),
                 'payout_status'    => $sr->payout_status,
                 'payout_id'        => optional($sr->payout)->id,
                 'payout_error'     => optional($sr->payout)->wompi_status,
