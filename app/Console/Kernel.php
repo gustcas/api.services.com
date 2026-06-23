@@ -30,6 +30,10 @@ class Kernel extends ConsoleKernel
             ->timezone('America/Bogota')
             ->withoutOverlapping()
             ->runInBackground();
+
+        $schedule->command('payments:sync-pending')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
     }
 
     /**
