@@ -207,8 +207,10 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             });
         // Admin — descarga documentos sin restricción de cliente ni 72hrs
         Route::get('requests/{id}/certification-document/plan',  [CertificationDocumentController::class, 'downloadPlan']);
-        Route::get('requests/{id}/certification-document/eval',  [CertificationDocumentController::class, 'downloadEval']);
-        Route::get('requests/{id}/certification-document/video', [CertificationDocumentController::class, 'downloadVideo']);
+        Route::get('requests/{id}/certification-document/eval',       [CertificationDocumentController::class, 'downloadEval']);
+        Route::get('requests/{id}/certification-document/eval/{idx}', [CertificationDocumentController::class, 'downloadEvalByIndex']);
+        Route::get('requests/{id}/certification-document/video',      [CertificationDocumentController::class, 'downloadVideo']);
+        Route::get('requests/{id}/certification-document/eval-blank',  [CertificationDocumentController::class, 'downloadEvalBlankAdmin']);
         Route::get('requests/{id}/saneamiento-document-admin',   [CertificationDocumentController::class, 'downloadSaneamientoAdmin']);
 
             // Categoria del dashboard
@@ -346,7 +348,8 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
             // Certificación — descarga archivos individuales
             Route::get('/requests/{id}/certification-document/plan',  [CertificationDocumentController::class, 'downloadPlan']);
-            Route::get('/requests/{id}/certification-document/eval',  [CertificationDocumentController::class, 'downloadEval']);
+            Route::get('/requests/{id}/certification-document/eval',       [CertificationDocumentController::class, 'downloadEval']);
+            Route::get('/requests/{id}/certification-document/eval/{idx}', [CertificationDocumentController::class, 'downloadEvalByIndex']);
             Route::get('/requests/{id}/certification-document/video', [CertificationDocumentController::class, 'downloadVideo']);
 
             // Plan de Saneamiento — descarga documento personalizado

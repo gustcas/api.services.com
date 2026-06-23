@@ -403,6 +403,8 @@ class AdminUserController extends Controller
             ];
         }
 
+        $totalServices = \App\Models\Service::where('is_active', true)->count();
+
         return [
             // Usuarios
             'totalUsers'           => $total,
@@ -418,6 +420,8 @@ class AdminUserController extends Controller
             'completedRequests'    => $completedRequests,
             'cancelledRequests'    => $cancelledRequests,
             'paymentPendingRequests' => $paymentPending,
+            'payment_pending'        => $paymentPending,
+            'totalServices'          => $totalServices,
             'todayRequests'        => $todayRequests,
             // Pagos
             'totalCollected'       => $totalCollected,
