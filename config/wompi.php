@@ -12,5 +12,6 @@ return [
     // Payouts
     'payouts_api_key' => env('WOMPI_PAYOUTS_API_KEY', ''),
     'payouts_user_id' => env('WOMPI_PAYOUTS_USER_ID', ''),
-    'payouts_api_url' => env('WOMPI_PAYOUTS_API_URL', 'https://api.payouts.wompi.co/v1'),
+    'payouts_api_url'      => env('WOMPI_PAYOUTS_API_URL', 'https://api.payouts.wompi.co/v1'),
+    'payouts_events_secret'=> env('WOMPI_PAYOUTS_EVENTS_SECRET', ''),
 ];
