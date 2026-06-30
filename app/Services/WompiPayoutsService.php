@@ -25,7 +25,7 @@ class WompiPayoutsService
         $this->apiUrl       = config('wompi.payouts_api_url');
         $this->apiKey       = config('wompi.payouts_api_key');
         $this->userId       = config('wompi.payouts_user_id');
-        $this->eventsSecret = config('wompi.events_secret');
+        $this->eventsSecret = config('wompi.payouts_events_secret') ?: config('wompi.events_secret');
     }
 
     /**
