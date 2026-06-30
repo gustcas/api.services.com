@@ -76,7 +76,7 @@ class LiveServicesController extends Controller
     public function requests(Request $request)
     {
         \App\Models\ServiceRequest::where('status', 'payment_pending')
-            ->whereHas('payments', fn($q) => $q->where('status', 'approved'))
+            ->whereHas('payment', fn($q) => $q->where('status', 'approved'))
             ->update(['status' => 'pending', 'payment_status' => 'paid']);
 
         $query = ServiceRequest::with([
