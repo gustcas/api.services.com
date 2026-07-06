@@ -188,9 +188,12 @@ Route::middleware(['auth:api', 'active'])->group(function () {
 
             // Dispersiones al profesional (payouts)
             Route::prefix('payouts')->group(function () {
-                Route::get('/',                   [WompiPayoutsController::class, 'index']);
-                Route::get('/{id}',               [WompiPayoutsController::class, 'show']);
-                Route::post('/{serviceRequestId}/disburse', [WompiPayoutsController::class, 'disburse']);
+                Route::get('/',                    [WompiPayoutsController::class, 'index']);
+                Route::get('/{id}',                [WompiPayoutsController::class, 'show']);
+                Route::post('/dispersar-todos',  [WompiPayoutsController::class, 'dispersarTodos']);
+                Route::post('/reset-failed',         [WompiPayoutsController::class, 'resetFailed']);
+                Route::post('/{payoutId}/reintentar', [WompiPayoutsController::class, 'reintentar']);
+                Route::post('/{serviceRequestId}/disburse',  [WompiPayoutsController::class, 'disburse']);
             });
 
             // Servicios en Vivo
@@ -248,6 +251,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
         Route::get('/earnings',  [ProfessionalController::class, 'earnings']);
         Route::get('/services',  [ProfessionalController::class, 'myServices']);
         Route::post('/profile', [ProfessionalController::class, 'storeOrUpdate']);
+        Route::post('/photo', [ProfessionalController::class, 'updatePhoto']);
 
             // Datos bancarios para dispersión de pagos
             Route::get('/payment-info',  [ProfessionalPaymentInfoController::class, 'show']);
@@ -289,6 +293,7 @@ Route::middleware(['auth:api', 'active'])->group(function () {
             Route::get('/profile',  [ClientProfileController::class, 'show']);
             Route::put('/profile',  [ClientProfileController::class, 'update']);
             Route::put('/password', [ClientProfileController::class, 'changePassword']);
+            Route::post('/photo', [ClientProfileController::class, 'updatePhoto']);
 
             // Notificaciones
             Route::get('/notifications',          [ClientProfileController::class, 'notifications']);

@@ -22,13 +22,13 @@ class CertificationDocumentController extends Controller
     ];
 
     /**
-     * Descarga el acta de capacitación para el cliente (ZIP con plan + evaluación + video).
+     * Descarga el acta de capacitación para el cliente
      */
     public function downloadForClient(Request $request, $requestId)
     {
         $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
             ->where('id', $requestId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['accepted', 'completed'])
             ->firstOrFail();
 
         $cycle    = $serviceRequest->cycle ?? 1;
@@ -66,7 +66,7 @@ class CertificationDocumentController extends Controller
     {
         $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
             ->where('id', $requestId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['accepted', 'completed'])
             ->firstOrFail();
 
         $cycle    = $serviceRequest->cycle ?? 1;
@@ -101,7 +101,7 @@ class CertificationDocumentController extends Controller
     {
         $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
             ->where('id', $requestId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['accepted', 'completed'])
             ->firstOrFail();
 
         $formType     = $serviceRequest->service ? $serviceRequest->service->form_type : null;
@@ -186,7 +186,7 @@ class CertificationDocumentController extends Controller
     {
         $serviceRequest = ServiceRequest::with(['service'])
             ->where('id', $requestId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['accepted', 'completed'])
             ->firstOrFail();
 
         $cycle        = $serviceRequest->cycle ?? 1;
@@ -256,7 +256,7 @@ class CertificationDocumentController extends Controller
     {
         $serviceRequest = ServiceRequest::with(['client', 'service', 'city', 'professional.user'])
             ->where('id', $requestId)
-            ->where('status', 'completed')
+            ->whereIn('status', ['accepted', 'completed'])
             ->firstOrFail();
 
         $category     = $this->resolveCategoryFolder($serviceRequest);
@@ -417,7 +417,7 @@ class CertificationDocumentController extends Controller
             $template->setValue("empresa_{$n}", $hasParticipant ? ($serviceRequest->company_name  ?? '') : '');
         }
 
-        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'plan_' . $serviceRequest->id . '.docx';
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'plan_' . $serviceRequest->id . '_' . uniqid() . '.docx';
         $template->saveAs($tmpPath);
 
         $firmasDir         = storage_path('app/certifications/firmas');
@@ -440,11 +440,23 @@ class CertificationDocumentController extends Controller
         if ($professional && $professional->professional_card) {
             $credencialPath = storage_path('app/public/' . ltrim($professional->professional_card, '/'));
             if (file_exists($credencialPath)) {
+                $ext = strtolower(pathinfo($credencialPath, PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg']) && function_exists('imagecreatefromjpeg')) {
+                    $pngPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'cred_' . $professional->id . '.png';
+                    $img = @imagecreatefromjpeg($credencialPath);
+                    if ($img) {
+                        imagepng($img, $pngPath);
+                        imagedestroy($img);
+                        $credencialPath = $pngPath;
+                    }
+                }
                 $imageReplacements['${credencial_profesional}'] = $credencialPath;
             }
         }
 
         $this->replaceImagesByDescr($tmpPath, $imageReplacements);
+
+        if (isset($pngPath) && file_exists($pngPath)) @unlink($pngPath);
 
         return $tmpPath;
     }
@@ -497,8 +509,12 @@ class CertificationDocumentController extends Controller
 
     private function replaceImagesByDescr(string $docxPath, array $replacements): void
     {
+        // Trabajar sobre una copia para evitar corrupción del ZIP original
+        $tmpCopy = $docxPath . '.tmp';
+        if (!copy($docxPath, $tmpCopy)) return;
+
         $zip = new \ZipArchive();
-        if ($zip->open($docxPath) !== true) return;
+        if ($zip->open($tmpCopy) !== true) { @unlink($tmpCopy); return; }
 
         $documentXml = $zip->getFromName('word/document.xml');
         $relsXml     = $zip->getFromName('word/_rels/document.xml.rels');
@@ -555,6 +571,9 @@ class CertificationDocumentController extends Controller
         $zip->addFromString('word/document.xml', $newDocumentXml);
         $zip->addFromString('word/_rels/document.xml.rels', $newRelsXml);
         $zip->close();
+
+        rename($tmpCopy, $docxPath);
+        if (file_exists($tmpCopy)) @unlink($tmpCopy);
     }
 
     private function convertToPdf(string $docxPath): ?string

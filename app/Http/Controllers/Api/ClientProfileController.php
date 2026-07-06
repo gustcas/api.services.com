@@ -216,4 +216,17 @@ class ClientProfileController extends Controller
     {
         return response()->json(['message' => 'No hay tarjeta guardada'], 422);
     }
+
+    public function updatePhoto(Request $request)
+{
+    $request->validate(['photo' => 'required|image|max:5120']);
+    $user = $request->user();
+    $path = $request->file('photo')->store('photos/clients', 'public');
+    $user->update(['photo' => $path]);
+
+    return response()->json([
+        'success'   => true,
+        'photo_url' => asset('storage/' . $path),
+    ]);
+}
 }

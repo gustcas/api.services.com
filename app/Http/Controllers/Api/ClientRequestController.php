@@ -41,6 +41,9 @@ class ClientRequestController extends Controller
                     'phone' => $r->professional->phone,
                     'photo' => $r->professional->photo,
                 ] : null,
+                'is_rated' => \App\Models\Rating::where('service_request_id', $r->id)
+                    ->where('rater_id', $r->client_id)
+                    ->exists(),
             ];
         }));
     }
