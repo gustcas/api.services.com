@@ -43,6 +43,8 @@ public function dashboard(Request $request)
             $stats['promedio_reseñas'] = \App\Models\Rating::where('ratee_id', $professional->user_id)
                 ->avg('score') ?? 0;
             $stats['promedio_reseñas'] = round($stats['promedio_reseñas'], 1);
+            $stats['avg_rating']       = $stats['promedio_reseñas'];
+            $stats['review_count']     = \App\Models\Rating::where('ratee_id', $professional->user_id)->count();
         }
 
         return response()->json([
@@ -267,4 +269,19 @@ public function dashboard(Request $request)
             ];
         }));
     }
+
+    public function updatePhoto(Request $request)
+{
+    $request->validate(['photo' => 'required|image|max:5120']);
+    $professional = $request->user()->professional;
+    if (!$professional) return response()->json(['message' => 'Perfil no encontrado.'], 404);
+
+    $path = $request->file('photo')->store('documents/photo', 'public');
+    $professional->update(['photo' => $path]);
+
+    return response()->json([
+        'success' => true,
+        'photo_url' => asset('storage/' . $path),
+    ]);
+}
 }

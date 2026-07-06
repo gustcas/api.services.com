@@ -97,6 +97,20 @@ class ProcessPayoutJob implements ShouldQueue
             }
 
             // 3. Dispersión a IMAVICX (imavicx_commission%)
+            $maintPct = $service ? (float) $service->maintenance_percentage : 0;
+            if ($maintPct > 0) {
+                $manteAccount = PayoutAccount::where('entity_type', 'maintenance')
+                    ->where('is_active', true)
+                    ->first();
+                if ($manteAccount) {
+                    $amount = round($budget * $maintPct / 100, 2);
+                    $resultMante = $payoutsService->disburseToAccount($sr, $manteAccount, $amount, 'maintenance', 'auto');
+                    Log::info("ProcessPayoutJob: MANTENIMIENTO resultado #{$this->serviceRequestId}: " . json_encode($resultMante));
+                } else {
+                    Log::warning("ProcessPayoutJob: Sin cuenta MANTENIMIENTO para SR#{$sr->id}");
+                }
+            }
+
             if ($imavicxPct > 0) {
                 $imavicxAccount = PayoutAccount::where('entity_type', 'imavicx')
                     ->where('is_active', true)

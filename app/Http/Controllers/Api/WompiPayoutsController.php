@@ -136,4 +136,77 @@ class WompiPayoutsController extends Controller
 
         return response()->json(['message' => 'OK']);
     }
+
+    public function dispersarTodos(Request $request)
+{
+    \Illuminate\Support\Facades\Artisan::call('pagos:dispersar');
+    $output = \Illuminate\Support\Facades\Artisan::output();
+    return response()->json(['success' => true, 'message' => 'Dispersión acumulada ejecutada.', 'output' => $output]);
+}
+
+public function resetFailed(Request $request)
+{
+    // SRs con payouts fallidos y sin ningún payout aprobado/processing activo
+    $failedSrIds = \App\Models\Payout::where('status', 'failed')
+        ->pluck('service_request_id')
+        ->unique()
+        ->toArray();
+
+    // SRs en processing sin ningún payout (nunca se llegó a crear el payout)
+    $processingIds = \App\Models\ServiceRequest::where('disbursement_status', 'processing')
+        ->whereDoesntHave('payment', fn($q) => $q->whereIn('status', ['processing', 'approved']))
+        ->pluck('id')
+        ->toArray();
+
+    $srIdsParaReset = array_unique(array_merge($failedSrIds, $processingIds));
+
+    // Excluir los que tienen payout aprobado o processing activo
+    $srIdsConActivo = \App\Models\Payout::whereIn('service_request_id', $srIdsParaReset)
+        ->whereIn('status', ['processing', 'approved'])
+        ->pluck('service_request_id')
+        ->unique()
+        ->toArray();
+
+    $srIdsParaReset = array_diff($srIdsParaReset, $srIdsConActivo);
+
+    if (!empty($srIdsParaReset)) {
+            \App\Models\ServiceRequest::whereIn('id', $srIdsParaReset)
+                ->update([
+                    'disbursement_status' => 'pending',
+                    'payout_status'       => 'pending_completion',
+                    'disbursed_at'        => null,
+                ]);
+        }
+
+    return response()->json(['success' => true, 'reset' => count($srIdsParaReset)]);
+}
+
+public function reintentar(Request $request, $payoutId)
+{
+    $payout = \App\Models\Payout::with(['serviceRequest.service', 'serviceRequest.professional.paymentInfo'])->findOrFail($payoutId);
+
+    if ($payout->status !== 'failed') {
+        return response()->json(['success' => false, 'message' => 'Solo se pueden reintentar pagos fallidos.'], 422);
+    }
+
+    // Resetear el payout existente — NO crear uno nuevo
+    $payout->update([
+        'status'          => 'processing',
+        'wompi_status'    => null,
+        'wompi_response'  => null,
+        'wompi_payout_id' => null,
+    ]);
+
+    $payoutsService = app(\App\Services\WompiPayoutsService::class);
+
+    // Enviar directamente a Wompi usando el payout existente
+    $result = $payoutsService->enviarPayoutExistente($payout);
+
+    if (!$result['success']) {
+        $payout->update(['status' => 'failed', 'wompi_status' => 'ERROR']);
+    }
+
+    return response()->json(['success' => $result['success'], 'message' => $result['message'] ?? 'OK']);
+}
+
 }
