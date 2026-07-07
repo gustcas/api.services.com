@@ -602,6 +602,8 @@ class CertificationDocumentController extends Controller
         \Log::info('LibreOffice cmd: ' . $cmd);
         \Log::info('LibreOffice output: ' . implode("\n", $output));
         \Log::info('LibreOffice code: ' . $code);
+        \Log::info('LibreOffice docx size: ' . (file_exists($docxPath) ? filesize($docxPath) : 'NOT FOUND'));
+        \Log::info('LibreOffice docx valid: ' . (file_exists($docxPath) ? shell_exec('unzip -t ' . escapeshellarg($docxPath) . ' 2>&1 | tail -1') : 'N/A'));
 
         if ($code !== 0) {
             \Log::error('LibreOffice convert failed: ' . implode("\n", $output));

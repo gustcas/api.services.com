@@ -67,6 +67,8 @@ class WompiPayoutsController extends Controller
                 'reference'           => $p->reference,
                 'amount'              => $p->amount,
                 'amount_formatted'    => '$' . number_format($p->amount, 0, ',', '.'),
+                'discount_amount'     => $p->discount_amount,
+                'net_amount'          => $p->net_amount,
                 'payment_method'      => $p->payment_method,
                 'bank_name'           => $p->bank_name,
                 'account_number'      => $p->account_number,
