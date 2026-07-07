@@ -104,6 +104,9 @@ class WompiPayoutsService
             'professional_id'    => $professional->id,
             'reference'          => $reference,
             'amount'             => $netAmount,
+         'gross_amount'       => $netAmount,
+         'discount_amount'    => $this->calcPayoutDiscount($netAmount)['discount'],
+         'net_amount'         => $this->calcPayoutDiscount($netAmount)['net'],
             'payment_method'     => $paymentInfo->payment_method,
             'bank_name'          => $paymentInfo->bank_name,
             'account_type'       => $paymentInfo->account_type,
@@ -177,6 +180,9 @@ class WompiPayoutsService
             'professional_id'    => $paymentInfo->professional_id ?? null,
             'reference'          => $reference,
             'amount'             => $amount,
+         'gross_amount'       => $amount,
+         'discount_amount'    => $this->calcPayoutDiscount($amount)['discount'],
+         'net_amount'         => $this->calcPayoutDiscount($amount)['net'],
             'payment_method'     => $paymentInfo->payment_method,
             'bank_name'          => $paymentInfo->bank_name,
             'account_type'       => $paymentInfo->account_type,
@@ -243,6 +249,9 @@ class WompiPayoutsService
             'professional_id'    => null,
             'reference'          => $reference,
             'amount'             => $amount,
+         'gross_amount'       => $amount,
+         'discount_amount'    => $this->calcPayoutDiscount($amount)['discount'],
+         'net_amount'         => $this->calcPayoutDiscount($amount)['net'],
             'payment_method'     => 'bank_transfer',
             'bank_name'          => $account->bank_name,
             'account_type'       => $account->account_type,
@@ -274,7 +283,7 @@ class WompiPayoutsService
             'legalId'       => $account->document_number,
             'name'          => $account->account_holder,
             'email'         => $account->email ?? 'pagos@e-service.com.co',
-            'amount'        => (int) round($amount * 100), // centavos
+            'amount'        => (int) round($this->calcPayoutDiscount($amount)['net'] * 100),
             'reference' => substr(preg_replace('/[^a-zA-Z0-9\-]/', '-', $reference . '-T1'), 0, 40),
             'bankId'        => $bankId,
             'accountType'   => strtoupper($account->account_type),
@@ -321,6 +330,9 @@ class WompiPayoutsService
             'professional_id'    => $sr->professional_id,
             'reference'          => $reference,
             'amount'             => $amount,
+         'gross_amount'       => $amount,
+         'discount_amount'    => $this->calcPayoutDiscount($amount)['discount'],
+         'net_amount'         => $this->calcPayoutDiscount($amount)['net'],
             'payment_method'     => 'bank_transfer',
             'bank_name'          => $account->bank_name,
             'account_type'       => $account->account_type,
@@ -446,7 +458,9 @@ class WompiPayoutsService
     {
         $method    = $info->payment_method;
         // Wompi Payouts usa CENTAVOS (documentación oficial: $10,000 COP = 1000000)
-        $amountInt = (int) round($amount * 100);
+        // Descontar comisión Wompi del monto a enviar
+        $discount  = $this->calcPayoutDiscount($amount);
+        $amountInt = (int) round($discount['net'] * 100);
 
         $base = [
             'legalIdType' => $info->id_type,
@@ -529,7 +543,7 @@ public function enviarPayoutExistente(\App\Models\Payout $payout): array
             'legalId'       => $account->document_number,
             'name'          => $account->account_holder,
             'email'         => $account->email ?? 'pagos@e-service.com.co',
-            'amount'        => (int) round($payout->amount * 100),
+            'amount'        => (int) round($this->calcPayoutDiscount($payout->amount)['net'] * 100),
             'reference' => substr(preg_replace('/[^a-zA-Z0-9\-]/', '-', $reference . '-T1'), 0, 40),
             'bankId'        => $bankId,
             'accountType'   => strtoupper($account->account_type),
@@ -568,4 +582,30 @@ public function enviarPayoutExistente(\App\Models\Payout $payout): array
         return ['success' => false, 'message' => $e->getMessage()];
     }
 }
+
+/**
+ * Calcula el descuento de Wompi Payouts por transacción
+ */
+public function calcPayoutDiscount(float $gross): array
+{
+    $fixedFee   = (float) config('wompi.payouts_fixed_fee', 1849);
+    $commPct    = (float) config('wompi.payouts_commission_pct', 0.4);
+    $ivaPct     = (float) config('wompi.payouts_iva_pct', 19);
+
+    $commission = round($gross * $commPct / 100, 2);
+    $ivaBase    = $fixedFee + $commission;
+    $iva        = round($ivaBase * $ivaPct / 100, 2);
+    $discount   = round($fixedFee + $commission + $iva, 2);
+    $net        = round($gross - $discount, 2);
+
+    return [
+        'gross'      => $gross,
+        'fixed_fee'  => $fixedFee,
+        'commission' => $commission,
+        'iva'        => $iva,
+        'discount'   => $discount,
+        'net'        => max(0, $net),
+    ];
+}
+
 }

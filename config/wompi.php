@@ -13,5 +13,8 @@ return [
     'payouts_api_key' => env('WOMPI_PAYOUTS_API_KEY', ''),
     'payouts_user_id' => env('WOMPI_PAYOUTS_USER_ID', ''),
     'payouts_api_url'      => env('WOMPI_PAYOUTS_API_URL', 'https://api.payouts.wompi.co/v1'),
-    'payouts_events_secret'=> env('WOMPI_PAYOUTS_EVENTS_SECRET', ''),
+    'payouts_events_secret'    => env('WOMPI_PAYOUTS_EVENTS_SECRET', ''),
+    'payouts_fixed_fee'        => env('WOMPI_PAYOUTS_FIXED_FEE', 1849),    
+    'payouts_commission_pct'   => env('WOMPI_PAYOUTS_COMMISSION_PCT', 0.4), 
+    'payouts_iva_pct'          => env('WOMPI_PAYOUTS_IVA_PCT', 19),         
 ];
