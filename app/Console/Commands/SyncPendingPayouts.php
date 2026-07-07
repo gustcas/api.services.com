@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Payout;
+use App\Services\WompiPayoutsService;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class SyncPendingPayouts extends Command
+{
+    protected $signature   = 'payouts:sync-pending';
+    protected $description = 'Sincroniza payouts pendientes consultando Wompi directamente';
+
+    public function handle(WompiPayoutsService $service): void
+    {
+        $apiKey = config('wompi.payouts_api_key');
+        $userId = config('wompi.payouts_user_id');
+        $apiUrl = config('wompi.payouts_api_url');
+
+        if (!$apiKey || !$userId) {
+            $this->warn('Sin credenciales Wompi Payouts.');
+            return;
+        }
+
+        $payouts = Payout::where('status', 'processing')
+            ->whereNotNull('wompi_payout_id')
+            ->whereNotIn('wompi_status', ['SIMULATED'])
+            ->get();
+
+        $this->info("Sincronizando {$payouts->count()} payouts pendientes...");
+
+        foreach ($payouts as $payout) {
+            try {
+                $resp = Http::withoutVerifying()
+                    ->withHeaders([
+                        'x-api-key'         => $apiKey,
+                        'user-principal-id' => $userId,
+                        'Accept'            => 'application/json',
+                    ])
+                    ->get("{$apiUrl}/payouts/{$payout->wompi_payout_id}");
+
+                if (!$resp->successful()) {
+                    $this->warn("Error consultando payout #{$payout->id}: " . $resp->status());
+                    continue;
+                }
+
+                $data   = $resp->json('data') ?? $resp->json();
+                $status = $data['status'] ?? null;
+
+                if (!$status) continue;
+
+                $payout->update([
+                    'wompi_status' => $status,
+                    'status'       => in_array($status, ['TOTAL_PAYMENT', 'APPROVED']) ? 'approved'
+                                   : (in_array($status, ['DECLINED', 'ERROR', 'FAILED', 'PARTIAL_PAYMENT']) ? 'failed' : 'processing'),
+                    'paid_at'      => in_array($status, ['TOTAL_PAYMENT', 'APPROVED']) ? now() : null,
+                ]);
+
+                $this->info("Payout #{$payout->id} SR#{$payout->service_request_id}: {$status}");
+                Log::info("SyncPendingPayouts: Payout #{$payout->id} → {$status}");
+
+            } catch (\Exception $e) {
+                $this->error("Error payout #{$payout->id}: " . $e->getMessage());
+                Log::error("SyncPendingPayouts error #{$payout->id}: " . $e->getMessage());
+            }
+        }
+
+        $this->info('Sincronización completada.');
+    }
+}

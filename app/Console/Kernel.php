@@ -34,6 +34,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('payments:sync-pending')
             ->everyFiveMinutes()
             ->withoutOverlapping();
+
+        $schedule->command('payouts:sync-pending')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
     }
 
     /**
