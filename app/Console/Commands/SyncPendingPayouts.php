@@ -24,6 +24,38 @@ class SyncPendingPayouts extends Command
             return;
         }
 
+        $headers = [
+            'x-api-key'         => $apiKey,
+            'user-principal-id' => $userId,
+            'Accept'            => 'application/json',
+        ];
+
+        $huerfanos = Payout::where('status', 'processing')
+            ->whereNull('wompi_payout_id')
+            ->get();
+
+        if ($huerfanos->count() > 0) {
+            $this->info("Recuperando ID de {$huerfanos->count()} payouts sin wompi_payout_id...");
+            try {
+                $listResp = Http::withoutVerifying()->withHeaders($headers)->get("{$apiUrl}/payouts");
+                $wompiPayouts = collect($listResp->json('data') ?? $listResp->json() ?? []);
+
+                foreach ($huerfanos as $payout) {
+                    $match = $wompiPayouts->firstWhere('reference', $payout->reference);
+                    if ($match && !empty($match['id'])) {
+                        $payout->update(['wompi_payout_id' => $match['id']]);
+                        $this->info("Payout #{$payout->id}: recuperado wompi_payout_id = {$match['id']}");
+                        Log::info("SyncPendingPayouts: recuperado wompi_payout_id para Payout #{$payout->id} = {$match['id']}");
+                    } else {
+                        $this->warn("Payout #{$payout->id}: no se encontró coincidencia por reference '{$payout->reference}'.");
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->error('Error recuperando IDs huérfanos: ' . $e->getMessage());
+                Log::error('SyncPendingPayouts: error recuperando IDs huérfanos: ' . $e->getMessage());
+            }
+        }
+
         $payouts = Payout::where('status', 'processing')
             ->whereNotNull('wompi_payout_id')
             ->whereNotIn('wompi_status', ['SIMULATED'])
@@ -34,11 +66,7 @@ class SyncPendingPayouts extends Command
         foreach ($payouts as $payout) {
             try {
                 $resp = Http::withoutVerifying()
-                    ->withHeaders([
-                        'x-api-key'         => $apiKey,
-                        'user-principal-id' => $userId,
-                        'Accept'            => 'application/json',
-                    ])
+                    ->withHeaders($headers)
                     ->get("{$apiUrl}/payouts/{$payout->wompi_payout_id}");
 
                 if (!$resp->successful()) {
