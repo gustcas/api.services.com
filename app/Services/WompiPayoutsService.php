@@ -441,9 +441,8 @@ class WompiPayoutsService
     {
         $receivedChecksum = $event['signature']['checksum'] ?? '';
         $properties       = $event['signature']['properties'] ?? [];
-        // Wompi Payouts envía timestamp en milisegundos, convertir a segundos
-        $ts        = $event['timestamp'] ?? 0;
-        $timestamp = $ts > 9999999999 ? (int)($ts / 1000) : $ts;
+        // Wompi firma el checksum
+        $timestamp = $event['timestamp'] ?? 0;
 
         $payload = '';
         foreach ($properties as $prop) {
@@ -468,7 +467,7 @@ class WompiPayoutsService
             'name'        => $info->full_name,
             'email'       => $info->email,
             'amount'      => $amountInt,
-            'reference'   => $ref . '-T1',
+            'reference'   => substr(preg_replace('/[^a-zA-Z0-9\-]/', '-', $ref . '-T1'), 0, 40),
         ];
 
         if ($method === 'bank_transfer') {
