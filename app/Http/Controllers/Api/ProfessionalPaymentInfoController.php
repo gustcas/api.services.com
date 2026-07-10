@@ -100,36 +100,31 @@ class ProfessionalPaymentInfoController extends Controller
             return response()->json(['success' => false, 'message' => 'Sin perfil profesional'], 404);
         }
 
-        $method = $request->payment_method ?? 'bank_transfer';
-
         $rules = [
-            'payment_method' => 'required|in:bank_transfer,nequi,daviplata',
             'id_type'        => 'required|in:CC,NIT,CE',
             'id_number'      => 'required|string|max:20',
             'full_name'      => 'required|string|max:150',
             'email'          => 'required|email',
             'account_number' => 'required|string|max:30',
+            'bank_id'        => 'required|string',
+            'bank_name'      => 'required|string',
+            'bank_code'      => 'nullable|string|max:100',
+            'account_type'   => 'required|in:AHORROS,CORRIENTE',
         ];
-
-        if ($method === 'bank_transfer') {
-            $rules['bank_id']      = 'required|string';
-            $rules['bank_name']    = 'required|string';
-            $rules['account_type'] = 'required|in:AHORROS,CORRIENTE';
-        }
 
         $request->validate($rules);
 
         $data = [
-            'payment_method' => $method,
+            'payment_method' => 'bank_transfer',
             'id_type'        => $request->id_type,
             'id_number'      => $request->id_number,
             'full_name'      => $request->full_name,
             'email'          => $request->email,
             'account_number' => $request->account_number,
-            'bank_id'        => $method === 'bank_transfer' ? $request->bank_id   : null,
-            'bank_code'      => $method === 'bank_transfer' ? $request->bank_code : null,
-            'bank_name'      => $method === 'bank_transfer' ? $request->bank_name : null,
-            'account_type'   => $method === 'bank_transfer' ? $request->account_type : null,
+            'bank_id'        => $request->bank_id,
+            'bank_code'      => $request->bank_code,
+            'bank_name'      => $request->bank_name,
+            'account_type'   => $request->account_type,
         ];
 
         $info = ProfessionalPaymentInfo::updateOrCreate(
