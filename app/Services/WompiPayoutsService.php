@@ -455,7 +455,6 @@ class WompiPayoutsService
 
     private function buildTransaction($info, float $amount, string $ref): ?array
     {
-        $method    = $info->payment_method;
         // Wompi Payouts usa CENTAVOS (documentación oficial: $10,000 COP = 1000000)
         // Descontar comisión Wompi del monto a enviar
         $discount  = $this->calcPayoutDiscount($amount);
@@ -470,20 +469,14 @@ class WompiPayoutsService
             'reference'   => substr(preg_replace('/[^a-zA-Z0-9\-]/', '-', $ref . '-T1'), 0, 40),
         ];
 
-        if ($method === 'bank_transfer') {
-            return array_merge($base, [
-                'bankId'        => $info->bank_id,
-                'accountType'   => $info->account_type,
-                'accountNumber' => $info->account_number,
-            ]);
-        }
-
-        $walletBankId = $this->resolveWalletBankId($method);
-        if (!$walletBankId) return null;
+        // Resolver el bankId real de Wompi por bank_code (mismo patrón que PayoutAccount),
+        // sirve tanto para bancos tradicionales como para Nequi/Daviplata guardados como banco.
+        $bankId = $this->resolveBankIdByCode($info->bank_code);
+        if (!$bankId) return null;
 
         return array_merge($base, [
-            'bankId'        => $walletBankId,
-            'accountType'   => strtoupper($method),
+            'bankId'        => $bankId,
+            'accountType'   => $info->account_type,
             'accountNumber' => $info->account_number,
         ]);
     }
