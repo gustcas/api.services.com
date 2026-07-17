@@ -38,7 +38,7 @@ class SyncPendingPayouts extends Command
             $this->info("Recuperando ID de {$huerfanos->count()} payouts sin wompi_payout_id...");
             try {
                 $listResp = Http::withoutVerifying()->withHeaders($headers)->get("{$apiUrl}/payouts");
-                $wompiPayouts = collect($listResp->json('data') ?? $listResp->json() ?? []);
+                $wompiPayouts = collect($listResp->json('data.records') ?? []);
 
                 foreach ($huerfanos as $payout) {
                     $match = $wompiPayouts->firstWhere('reference', $payout->reference);
